@@ -1,415 +1,452 @@
-# Discord Community Activity Visualization Platform
+# Discord コミュニティ活動可視化プラットフォーム
 
-> A Phase 1 project to collect, store, and visualize Discord community activity data using Databricks
+> Phase 1：Discord コミュニティの活動データを Databricks で収集・蓄積・可視化するプロジェクト
 
-[![Project Status](https://img.shields.io/badge/status-active-green)]()
-[![Platform](https://img.shields.io/badge/platform-Databricks-orange)]()
-[![Source](https://img.shields.io/badge/source-Discord%20API-blue)]()
+[![プロジェクト状況](https://img.shields.io/badge/status-active-green)]()
+[![プラットフォーム](https://img.shields.io/badge/platform-Databricks-orange)]()
+[![データソース](https://img.shields.io/badge/source-Discord%20API-blue)]()
 [![Python](https://img.shields.io/badge/python-3.9+-blue)]()
 
 ---
 
-## Overview
+## 概要
 
-This project builds a data collection and visualization platform for Discord communities.
+本プロジェクトは、Discord コミュニティの活動データを収集・蓄積・可視化するプラットフォームを構築する。
 
-By integrating the Discord API with the Databricks Lakehouse Platform, the project enables continuous collection, aggregation, and visualization of community activity data.  
-The primary goal of Phase 1 is to support data-driven community management by making activity patterns visible and explainable.
+Discord API と Databricks Lakehouse を連携させ、活動データの継続的な取得・集計・可視化を実現する。  
+Phase 1 の目的は、活動傾向を「見える化」し、コミュニティ運営の意思決定を**データに基づいて**行えるようにすることである。
 
-This repository focuses on **data infrastructure and visualization**, not automation or AI-driven decision-making.
-
----
-
-## Table of Contents
-
-- [Quick Start](#quick-start)
-- [Project Structure](#project-structure)
-- [Dashboards](#dashboards)
-- [Development & Standards](#development--standards)
-- [Roadmap](#roadmap)
-- [Notes](#notes)
-- [Documentation](#documentation)
-- [Development Setup](#development-setup)
-- [Contributing](#contributing)
-- [Troubleshooting](#troubleshooting)
-- [Project Summary](#project-summary)
-- [Contact](#contact)
+本リポジトリは**データ基盤と可視化**に焦点を当てており、自動化や AI による意思決定支援は Phase 1 のスコープ外である。
 
 ---
 
-## Quick Start
+## 要件定義との関係
 
-### For Developers
+- **要件定義書**：[要件定義.md](要件定義.md) に、プロジェクトの目的・背景・As-Is/To-Be・スコープ・ゴール・成功基準・成果物を定義している。
+- **本 README**：要件定義の要約と、**再現手順・設計意図・開発者向けセットアップ**を記載する。スコープ・ゴール・成果物は要件定義に準拠し、変更時は要件定義と同期する。
+- **同期の考え方**：ゴール・成功基準・スコープ・成果物（Definition of Done）は要件定義を正とする。README の「本プロジェクトで作るもの」「スコープ」「プロジェクトサマリ」は要件定義の該当セクションと整合させる。
 
-1. **Clone the repository**
+---
+
+## 本プロジェクトで作るもの
+
+### コミュニティ施策のサイクル（4段階）
+
+本プロジェクトでは、コミュニティ施策を次の **4 段階** に分解して課題整理と To-Be 設計を行っている。
+
+1. **現状把握**（Current State Grasp）— コミュニティの状態を客観的に観測し、変化を検知する  
+2. **設計**（Design）— データと仮説に基づき、優先順位と施策設計を行う  
+3. **実行**（Execution）— 設計された施策を再現性をもって実行する  
+4. **検証・改善**（Validate & Improve）— 施策の実行結果を定量的に検証し、得られた学習を次の設計に反映させる  
+
+課題には前段階との依存関係があるため、**現状把握 → 設計 → 実行 → 検証・改善** の順で段階的に解決する。
+
+### Phase 1（今回のスコープ）：現状把握の基盤整備
+
+**やること**
+
+- Discord API で活動データを取得し、Databricks に継続蓄積する  
+- 活動傾向（曜日・時間帯等）の集計ロジックを実装する  
+- ダッシュボードで全体アクティビティ・時系列・傾向を可視化する  
+- 再現手順・設計意図を本 README 等に記載する  
+
+**成果物（Definition of Done）**
+
+- **GitHub**：データ取り込みアプリケーションのソースコード、README（アーキテクチャ・実行手順・設計判断）  
+- **Databricks**：活動ログテーブル、集計ノートブックまたは SQL、ダッシュボード  
+
+### Phase 2・3（今後）
+
+- **Phase 2**：設計のデータ駆動化（施策効果が高そうな日時の予測・レコメンド、データ・仮説に基づくイベント設計など）  
+- **Phase 3**：実行の再現性と最適化（告知・クリエイティブのテンプレート化、LLM/RAG、告知タイミング・対象の最適化）  
+- **検証・改善**：RAG による自動検証、Action Item Recommendation のような次アクションのレコメンド  
+
+詳細は [要件定義.md](要件定義.md) の「2. As-Is / To-Be」「3. ゴールと成功基準」「4. スコープ定義」を参照。
+
+---
+
+## 目次
+
+- [クイックスタート](#クイックスタート)
+- [プロジェクト構成](#プロジェクト構成)
+- [ダッシュボード](#ダッシュボード)
+- [開発・標準](#開発標準)
+- [ロードマップ](#ロードマップ)
+- [ドキュメント](#ドキュメント)
+- [開発環境セットアップ](#開発環境セットアップ)
+- [貢献](#貢献)
+- [トラブルシューティング](#トラブルシューティング)
+- [プロジェクトサマリ](#プロジェクトサマリ)
+- [連絡先](#連絡先)
+
+---
+
+## クイックスタート
+
+### 開発者向け
+
+1. **リポジトリのクローン**
    ```bash
-   git clone <repository-url>
+   git clone <リポジトリURL>
    cd jedai_pj
    ```
 
-2. **Set up Databricks environment**
-   - Follow the [Environment Configuration Guide](guides/implementation/ENVIRONMENT_CONFIGURATION.md)
-   - Ensure Databricks workspace is configured with Unity Catalog
+2. **Databricks 環境の準備**
+   - [環境設定ガイド](guides/implementation/ENVIRONMENT_CONFIGURATION.md) に従う
+   - Databricks ワークスペースで Unity Catalog が有効であることを確認する
 
-3. **Run setup scripts**
+3. **セットアップスクリプトの実行**
    ```bash
-   # Execute scripts in order
-   scripts/01_setup/     # Environment setup (catalog, schema, roles, metadata tables)
-   scripts/02_bronze/    # Bronze layer ingestion (Discord API → Delta)
-   scripts/03_silver/    # Silver layer cleansing
-   scripts/04_gold/      # Gold layer feature engineering
-   scripts/06_dashboards/ # Dashboard views and queries
+   # 順番に実行
+   scripts/01_setup/     # 環境構築（カタログ、スキーマ、ロール、メタデータテーブル）
+   scripts/02_bronze/    # Bronze 層取り込み（Discord API → Delta）
+   scripts/03_silver/    # Silver 層クレンジング
+   scripts/04_gold/      # Gold 層特徴量エンジニアリング
+   scripts/06_dashboards/ # ダッシュボード用ビュー・クエリ
    ```
 
-4. **Review documentation**
-   - See [Implementation Guides](guides/implementation/README.md) for detailed setup
-   - Check [Standards](standards/00-core/README.md) for coding conventions
+4. **ドキュメントの確認**
+   - [実装ガイド](guides/implementation/README.md) でセットアップの詳細を確認
+   - [標準](standards/00-core/README.md) でコーディング規約を確認
 
-### For Project Stakeholders
+### ステークホルダー向け
 
-See [Project Summary](#project-summary) below for business context, objectives, and scope.
+ビジネス背景・目的・スコープは下記 [プロジェクトサマリ](#プロジェクトサマリ) および [要件定義.md](要件定義.md) を参照。
 
 ---
 
-## Prerequisites
+## 前提条件
 
-### Required
+### 必須
 
-- **Databricks Workspace** with Unity Catalog enabled
-- **Python 3.9+** (for local development)
-- **Databricks CLI** configured
-- **Git** for version control
+- **Databricks ワークスペース**（Unity Catalog 有効）
+- **Python 3.9+**（ローカル開発用）
+- **Databricks CLI** の設定
+- **Git**（バージョン管理）
 
-### Recommended
+### 推奨
 
-- **Databricks Runtime** 13.3 LTS or later
-- **Discord API access** (application token / bot token for activity data)
-- **Knowledge of**:
-  - PySpark / Spark SQL
-  - Delta Live Tables (DLT)
-  - REST API integration
+- **Databricks Runtime** 13.3 LTS 以降
+- **Discord API アクセス**（活動データ取得用のアプリケーション／ボットトークン）
+- **知識**：PySpark / Spark SQL、Delta Live Tables（DLT）、REST API 連携
 
-### Environment Variables
+### 環境変数
 
-Configure the following (see [Environment Configuration Guide](guides/implementation/ENVIRONMENT_CONFIGURATION.md)):
+以下を設定する（[環境設定ガイド](guides/implementation/ENVIRONMENT_CONFIGURATION.md) 参照）。
 
 - `DATABRICKS_HOST`
 - `DATABRICKS_TOKEN`
 - `DATABRICKS_CATALOG`
 - `DATABRICKS_SCHEMA`
-- Discord API credentials via Databricks Secrets (do not hardcode)
+- Discord API の認証情報は Databricks Secrets で管理（ソースコードにハードコードしない）
 
 ---
 
-## Project Structure
+## プロジェクト構成
 
 ```
 jedai_pj/
-├── .cursorrules/              # Cursor Project Rules (00-foundations … 07-implementation-areas)
-├── data/                       # Data files
-│   ├── raw/                    # Raw data
-│   └── reference/              # Reference data
-├── scripts/                    # Implementation scripts
-│   ├── 01_setup/               # Environment setup (catalog, schema, roles, metadata tables)
-│   ├── 02_bronze/              # Bronze layer ingestion (e.g. Discord API → Delta)
-│   ├── 03_silver/              # Silver layer cleansing
-│   │   ├── common/             # Common utilities (quarantine, SCD Type 2)
-│   │   ├── dlt/                # DLT scripts
-│   │   └── legacy/             # Legacy scripts
-│   ├── 04_gold/                # Gold layer feature engineering
-│   ├── 05_models/              # ML model inference
-│   ├── 06_dashboards/          # Dashboard views and queries
-│   │   ├── 00-09/              # View creation
-│   │   ├── 20-29/              # Dashboard query provision
-│   │   └── 80-89/              # Maintenance
-│   ├── 07_workflows/           # Databricks Workflows definitions
-│   └── 08_maintenance/         # Maintenance (OPTIMIZE, VACUUM)
-├── standards/                  # Standards and guidelines
-│   ├── 00-core/                # Core standards, naming, project structure
-│   ├── 01-language/            # Language-specific standards
-│   ├── 02-platform/            # Platform and data-engineering best practices
-│   ├── 03-patterns/            # Implementation patterns, error handling
-│   └── 99-governance/          # Governance
-├── guides/                     # Implementation guides
-│   ├── dashboards/             # Dashboard guides
-│   ├── data-model/             # Data model guides
-│   ├── implementation/        # Implementation guides (DLT, environment, SCD Type 2)
-│   ├── ml-models/              # ML model guides
-│   ├── pre-implementation/     # Pre-implementation considerations
-│   └── solution-design/        # Solution design guides
-├── solutions/                  # Solution design documents (e.g. X. solution_overview.md)
-├── dashboard/                  # Dashboard definition files (.lvdash.json)
+├── .cursorrules/              # Cursor プロジェクトルール
+├── data/                       # データファイル
+│   ├── raw/                    # 生データ
+│   └── reference/             # 参照データ
+├── scripts/                    # 実装スクリプト
+│   ├── 01_setup/               # 環境構築（カタログ、スキーマ、ロール、メタデータテーブル）
+│   ├── 02_bronze/              # Bronze 層取り込み（Discord API → Delta）
+│   ├── 03_silver/              # Silver 層クレンジング
+│   │   ├── common/             # 共通ユーティリティ（検疫、SCD Type 2）
+│   │   ├── dlt/                # DLT スクリプト
+│   │   └── legacy/             # レガシースクリプト
+│   ├── 04_gold/                # Gold 層特徴量エンジニアリング
+│   ├── 05_models/              # ML モデル推論
+│   ├── 06_dashboards/          # ダッシュボード用ビュー・クエリ
+│   │   ├── 00-09/              # ビュー作成
+│   │   ├── 20-29/              # ダッシュボードクエリ提供
+│   │   └── 80-89/              # 保守
+│   ├── 07_workflows/           # Databricks Workflows 定義
+│   └── 08_maintenance/         # 保守（OPTIMIZE、VACUUM）
+├── standards/                  # 標準・ガイドライン
+├── guides/                     # 実装ガイド
+├── solutions/                  # ソリューション設計ドキュメント
+├── dashboard/                  # ダッシュボード定義ファイル（.lvdash.json）
+├── 要件定義.md                 # プロジェクト要件定義（スコープ・ゴール・成果物の正）
 └── README.md
 ```
 
-**See [Project Structure Template](standards/00-core/PROJECT_STRUCTURE_TEMPLATE.md) for detailed pipeline flow and execution order.**
+パイプラインの流れと実行順序の詳細は [プロジェクト構成テンプレート](standards/00-core/PROJECT_STRUCTURE_TEMPLATE.md) を参照。
 
 ---
 
-## Dashboards
+## ダッシュボード
 
-Phase 1 dashboards focus on temporal activity patterns.
+Phase 1 のダッシュボードは、**時間軸での活動パターン**に焦点を当てる。
 
-**Example views:**
+**例となるビュー**
 
-- **Activity volume by day of week × hour** — Message or participation counts over time
-- **Comparison across different time windows** — Trends and patterns for scheduling decisions
+- **曜日×時間帯ごとの活動量** — メッセージ数や参加数などの時系列
+- **異なる時間窓での比較** — スケジュール判断のためのトレンド・パターン
 
-Dashboards are designed to support exploration and explanation, not automated decision-making.  
-See [Dashboard Creation Guide](guides/dashboards/DASHBOARD_CREATION_GUIDE.md) for implementation details.
-
----
-
-## Development & Standards
-
-This project follows the **Databricks Solution Standard Guideline** and project rules under `.cursorrules/`.
-
-- **Data transformations** follow a Medallion-style structure (Bronze → Silver → Gold)
-- **All scripts and notebooks** include explanatory comments ([Code Commenting Standard](standards/01-language/CODE_COMMENTING_STANDARD.md))
-- **Secrets** (tokens, keys) are managed outside of source code (Databricks Secrets)
-- **Reproducibility** is prioritized over performance optimization in Phase 1
-
-### Key Standards
-
-- **Naming**: [myteam Naming Conventions](standards/00-core/myteam_Naming_Conventions.md)
-- **Comments**: [Code Commenting Standard](standards/01-language/CODE_COMMENTING_STANDARD.md)
-- **Errors**: [Error Handling](standards/03-patterns/ERROR_HANDLING_STANDARD.md)
-- **Patterns**: [Implementation Patterns](standards/03-patterns/IMPLEMENTATION_PATTERNS.md)
-
-### Architecture
-
-- **Bronze**: Append-only; preserve raw form (e.g. Discord API response)
-- **Silver**: Cleansing, validation; SCD Type 2 where required; DLT preferred
-- **Gold**: Aggregations and feature tables; overwrite with `overwriteSchema` where appropriate
-- **Data quality**: DLT Expectations; invalid data to quarantine tables per naming rules
+ダッシュボードは探索・説明を支援するもので、自動意思決定は Phase 1 のスコープ外である。  
+実装の詳細は [ダッシュボード作成ガイド](guides/dashboards/DASHBOARD_CREATION_GUIDE.md) を参照。
 
 ---
 
-## Roadmap
+## 開発・標準
 
-| Phase | Status   | Focus |
-|-------|----------|--------|
-| **Phase 1** | Current  | Data ingestion, aggregation, dashboard visualization, Jedai presentation |
-| **Phase 2** | Planned  | Metric expansion, segmentation by roles/channels, event-level analysis, advanced analytics |
+本プロジェクトは **Databricks Solution Standard Guideline** および `.cursorrules/` のプロジェクトルールに従う。
 
----
+- **データ変換**はメダリオン構成（Bronze → Silver → Gold）に従う
+- **スクリプト・ノートブック**には説明コメントを含める（[コメント標準](standards/01-language/CODE_COMMENTING_STANDARD.md)）
+- **シークレット**（トークン、キー）はソースコード外で管理（Databricks Secrets）
+- Phase 1 では**再現性**を性能最適化より優先する
 
-## Documentation
+### 主な標準
 
-### Key Documentation Links
+- **命名**：[myteam 命名規則](standards/00-core/myteam_Naming_Conventions.md)
+- **コメント**：[コメント標準](standards/01-language/CODE_COMMENTING_STANDARD.md)
+- **エラー**：[エラーハンドリング](standards/03-patterns/ERROR_HANDLING_STANDARD.md)
+- **パターン**：[実装パターン](standards/03-patterns/IMPLEMENTATION_PATTERNS.md)
 
-#### Standards Reference
-- **[Core Standards](standards/00-core/README.md)** — Project standards overview
-- **[Naming Conventions](standards/00-core/myteam_Naming_Conventions.md)** — Naming rules
-- **[Code Commenting](standards/01-language/CODE_COMMENTING_STANDARD.md)** — Comments and docstrings
-- **[Implementation Patterns](standards/03-patterns/IMPLEMENTATION_PATTERNS.md)** — Common patterns
-- **[Data Engineering Best Practices](standards/02-platform/Data_Engineering_Best_Practices.md)** — Platform and pipeline practices
+### アーキテクチャ
 
-#### Implementation Guides
-- **[DLT Complete Guide](guides/implementation/DLT_COMPLETE_GUIDE.md)** — DLT pipelines
-- **[Environment Configuration](guides/implementation/ENVIRONMENT_CONFIGURATION.md)** — Environment setup
-- **[SCD Type 2](guides/implementation/SCD_TYPE2_THREE_APPROACHES_COMPARISON.md)** — SCD Type 2 implementation
-
-#### Data & Dashboards
-- **[Data Model Guides](guides/data-model/)** — Data model and schemas
-- **[Dashboard Guide](guides/dashboards/DASHBOARD_CREATION_GUIDE.md)** — Dashboard creation
-
-### Quick Reference
-
-| Topic | Document |
-|-------|----------|
-| **Getting Started** | [Environment Configuration](guides/implementation/ENVIRONMENT_CONFIGURATION.md) |
-| **DLT Pipelines** | [DLT Complete Guide](guides/implementation/DLT_COMPLETE_GUIDE.md) |
-| **Naming Rules** | [Naming Conventions](standards/00-core/myteam_Naming_Conventions.md) |
-| **Code Standards** | [Code Commenting](standards/01-language/CODE_COMMENTING_STANDARD.md) |
-| **Project Structure** | [Project Structure Template](standards/00-core/PROJECT_STRUCTURE_TEMPLATE.md) |
+- **Bronze**：追加のみ、生データを保持（例：Discord API レスポンス）
+- **Silver**：クレンジング、検証、必要に応じて SCD Type 2、DLT を推奨
+- **Gold**：集計・特徴量テーブル、必要に応じて `overwriteSchema` で上書き
+- **データ品質**：DLT Expectations、不正データは命名規則に従い検疫テーブルへ
 
 ---
 
-## Development Setup
+## ロードマップ
 
-### 1. Clone Repository
+| Phase | 状況 | 焦点 |
+|-------|------|------|
+| **Phase 1** | 現在 | データ取り込み、集計、ダッシュボード可視化、JEDAI での紹介 |
+| **Phase 2** | 計画中 | 設計のデータ駆動化（施策日時予測・レコメンド、データ・仮説に基づくイベント設計、長期指標） |
+| **Phase 3** | 計画中 | 実行の再現性と最適化（LLM/RAG、告知タイミング・対象の最適化）、検証・改善（RAG 自動検証、Action Item Recommendation） |
+
+---
+
+## ドキュメント
+
+### 主なドキュメント
+
+#### 標準
+- [コア標準](standards/00-core/README.md) — プロジェクト標準の概要
+- [命名規則](standards/00-core/myteam_Naming_Conventions.md) — 命名ルール
+- [コメント標準](standards/01-language/CODE_COMMENTING_STANDARD.md) — コメント・docstring
+- [実装パターン](standards/03-patterns/IMPLEMENTATION_PATTERNS.md) — 共通パターン
+- [データエンジニアリングベストプラクティス](standards/02-platform/Data_Engineering_Best_Practices.md) — プラットフォーム・パイプライン
+
+#### 実装ガイド
+- [DLT 完全ガイド](guides/implementation/DLT_COMPLETE_GUIDE.md) — DLT パイプライン
+- [環境設定](guides/implementation/ENVIRONMENT_CONFIGURATION.md) — 環境構築
+- [SCD Type 2](guides/implementation/SCD_TYPE2_THREE_APPROACHES_COMPARISON.md) — SCD Type 2 実装
+
+#### データ・ダッシュボード
+- [データモデルガイド](guides/data-model/) — データモデル・スキーマ
+- [ダッシュボードガイド](guides/dashboards/DASHBOARD_CREATION_GUIDE.md) — ダッシュボード作成
+
+### クイックリファレンス
+
+| トピック | ドキュメント |
+|----------|----------------|
+| **はじめに** | [環境設定](guides/implementation/ENVIRONMENT_CONFIGURATION.md) |
+| **DLT パイプライン** | [DLT 完全ガイド](guides/implementation/DLT_COMPLETE_GUIDE.md) |
+| **命名ルール** | [命名規則](standards/00-core/myteam_Naming_Conventions.md) |
+| **コード標準** | [コメント標準](standards/01-language/CODE_COMMENTING_STANDARD.md) |
+| **プロジェクト構成** | [プロジェクト構成テンプレート](standards/00-core/PROJECT_STRUCTURE_TEMPLATE.md) |
+
+---
+
+## 開発環境セットアップ
+
+### 1. リポジトリのクローン
 
 ```bash
-git clone <repository-url>
+git clone <リポジトリURL>
 cd jedai_pj
 ```
 
-### 2. Configure Databricks
+### 2. Databricks の設定
 
 ```bash
 pip install databricks-cli
 databricks configure --token
 ```
 
-### 3. Set Up Environment
+### 3. 環境の準備
 
 ```bash
 python -m venv venv
 source venv/bin/activate   # Windows: venv\Scripts\activate
-pip install -r requirements.txt   # if present
+pip install -r requirements.txt   # 存在する場合
 ```
 
-### 4. Environment Variables & Secrets
+### 4. 環境変数・シークレット
 
-- Set `DATABRICKS_HOST`, `DATABRICKS_TOKEN`, catalog/schema as needed.
-- Store Discord API credentials in Databricks Secrets; do not commit to the repo.
+- `DATABRICKS_HOST`、`DATABRICKS_TOKEN`、カタログ・スキーマを必要に応じて設定
+- Discord API の認証情報は Databricks Secrets に保存し、リポジトリにコミットしない
 
-### 5. Run Setup Scripts
+### 5. セットアップスクリプトの実行
 
-Execute in order:
+以下の順で実行する。
 
 ```bash
-scripts/01_setup/    # Catalog, schema, roles, metadata tables
-scripts/02_bronze/   # Bronze ingestion (e.g. Discord → Delta)
-scripts/03_silver/   # Silver cleansing (DLT or legacy)
-scripts/04_gold/     # Gold feature engineering
-scripts/06_dashboards/ # Views and dashboard queries
+scripts/01_setup/    # カタログ、スキーマ、ロール、メタデータテーブル
+scripts/02_bronze/   # Bronze 取り込み（Discord → Delta）
+scripts/03_silver/   # Silver クレンジング（DLT またはレガシー）
+scripts/04_gold/     # Gold 特徴量エンジニアリング
+scripts/06_dashboards/ # ビュー・ダッシュボードクエリ
 ```
 
-### 6. Verify
+### 6. 動作確認
 
-- Databricks workspace and Unity Catalog access
-- At least one pipeline run (e.g. Bronze → Silver → Gold)
-- Dashboard loads as expected
+- Databricks ワークスペースおよび Unity Catalog へのアクセス
+- 少なくとも 1 回のパイプライン実行（Bronze → Silver → Gold）
+- ダッシュボードが期待どおりに表示されること
 
 ---
 
-## Contributing
+## 貢献
 
-1. **Create a feature branch**
+1. **フィーチャーブランチの作成**
    ```bash
-   git checkout -b feature/your-feature-name
+   git checkout -b feature/ブランチ名
    ```
 
-2. **Follow standards** — Naming, commenting, error handling, tests where applicable.
+2. **標準に従う** — 命名、コメント、エラーハンドリング、該当する場合はテスト
 
-3. **Submit pull request** — Description, related issues, tests passing.
+3. **プルリクエストの提出** — 説明、関連 Issue、テスト通過
 
-### Code Review Checklist
+### コードレビューチェックリスト
 
-- [ ] Follows project standards
-- [ ] Tests added/updated where relevant
-- [ ] Documentation updated
-- [ ] No hardcoded secrets
-- [ ] Errors handled; logging where appropriate
+- [ ] プロジェクト標準に従っている
+- [ ] 該当する場合にテストを追加・更新している
+- [ ] ドキュメントを更新している
+- [ ] シークレットをハードコードしていない
+- [ ] エラーを適切に処理し、ログを記録している
 
 ---
 
-## Troubleshooting
+## トラブルシューティング
 
-### Databricks Connection
+### Databricks 接続
 
-- Check `DATABRICKS_HOST` and `DATABRICKS_TOKEN` (or profile)
-- Confirm token not expired; retry after re-auth
-- Verify Unity Catalog and workspace permissions
+- `DATABRICKS_HOST` と `DATABRICKS_TOKEN`（またはプロファイル）を確認
+- トークンの有効期限を確認し、再認証後にリトライ
+- Unity Catalog およびワークスペースの権限を確認
 
-### DLT / Pipeline Errors
+### DLT / パイプラインエラー
 
-- Confirm no conflicting table names; use `_dlt` during development if needed
-- Check [DLT Complete Guide](guides/implementation/DLT_COMPLETE_GUIDE.md) and Expectations
-- Inspect quarantine tables for dropped rows
+- テーブル名の衝突がないか確認、開発時は必要に応じて `_dlt` を使用
+- [DLT 完全ガイド](guides/implementation/DLT_COMPLETE_GUIDE.md) と Expectations を確認
+- ドロップされた行は検疫テーブルで確認
 
-### Schema / Write Mode
+### スキーマ・書き込みモード
 
-- Bronze/Silver: `mode("append")` with `option("mergeSchema", "true")`
-- Gold: `mode("overwrite")` with `option("overwriteSchema", "true")` where full refresh is intended
-- Avoid DROP TABLE + CREATE TABLE in production pipelines
+- Bronze/Silver：`mode("append")` と `option("mergeSchema", "true")`
+- Gold：フルリフレッシュを想定する場合は `mode("overwrite")` と `option("overwriteSchema", "true")`
+- 本番パイプラインでは DROP TABLE + CREATE TABLE を避ける
 
 ### Discord API
 
-- Verify token and permissions (e.g. Guild Members Intent if needed)
-- Check rate limits and backoff; store credentials in Databricks Secrets
+- トークンと権限（例：Guild Members Intent）を確認
+- レート制限とバックオフを考慮、認証情報は Databricks Secrets に保存
 
 ---
 
-## Project Summary
+## プロジェクトサマリ
 
-### 1. Executive Summary
+本セクションは [要件定義.md](要件定義.md) の要約である。スコープ・ゴール・成果物の正式な定義は要件定義を正とする。
 
-This project implements **Phase 1** of a **Discord Community Activity Visualization Platform**: collect, store, and visualize Discord server activity on Databricks so community management can be based on data (e.g. by day of week and time of day) instead of experience or intuition.
+### 1. 概要
 
-It is presented at **Jedai** as a practical case study of building a data platform and visualization pipeline on Databricks using a **non-business data source** (Discord activity logs).
+本プロジェクトは **Discord コミュニティ活動可視化プラットフォーム** の **Phase 1** を実装する。  
+Discord サーバーの活動データを Databricks で収集・蓄積・可視化し、コミュニティ運営の意思決定を**経験や直感ではなくデータ**に基づいて行えるようにする（例：曜日・時間帯ごとの傾向）。
 
-### 2. Background and Problem
+**JEDAI** では、ビジネス以外のデータソース（Discord 活動ログ）を対象に Databricks でデータプラットフォーム・可視化パイプラインを構築する実践事例として紹介する。
 
-- **Context**: A university esports community on Discord (600+ members); events and engagement are managed with limited quantitative support.
-- **Gap**: Decisions (e.g. when to hold events) rely on experience and intuition; there is no systematic way to record, verify, or share findings with data.
-- **Goal**: Ingest Discord activity, store it in Databricks, and provide dashboards so that situation awareness, hypothesis formation, and planning can be data-driven.
+### 2. 背景と課題
 
-### 3. Objectives and Success Criteria (Phase 1)
+- **文脈**：大学 e スポーツ系 Discord コミュニティ（600名超）、イベントやエンゲージメントの運営に定量サポートが不足
+- **ギャップ**：日時の選定など重要な意思決定が経験・直感に依存しており、観察を定量的に記録・検証・共有する仕組みがない
+- **目的**：Discord の活動データを取り込み、Databricks に蓄積し、ダッシュボードで現状把握・仮説形成・計画をデータ駆動で行えるようにする
 
-| Goal | By end of March 2025 |
-|------|----------------------|
-| **Deliverable** | A dashboard that explains Discord community activity trends by **day of week** and **time of day**. |
+### 3. ゴールと成功基準（Phase 1）
 
-**Success criteria (definition of done):**
+| ゴール | 2025年3月末まで |
+|--------|------------------|
+| **成果物** | Discord コミュニティの活動傾向を**曜日**・**時間帯**で説明できるダッシュボードを構築する |
 
-- Activity data is retrievable via the Discord API.
-- Data is stored in Databricks and can be recomputed.
-- Activity trends are visualized on a dashboard.
-- Operational insights can be explained using the visualized data.
-- Reproduction steps and design intent are documented (e.g. in this README).
+**成功基準（Definition of Done）**
 
-### 4. As-Is vs To-Be (Phase 1)
+- Discord API により活動データを取得できる
+- データが Databricks に継続的に蓄積され、再計算可能である
+- 活動傾向がダッシュボードで可視化されている
+- 可視化されたデータを用いて運営上の知見を説明できる
+- README に再現手順および設計意図が記載されている
 
-| Aspect | As-Is | To-Be (Phase 1) |
-|--------|--------|------------------|
-| **Situation** | Subjective sense of activity; no quantitative history | Continuous collection and storage; trends by day/time on dashboards |
-| **Hypotheses** | Based on experience (e.g. “weekends are busier”) | Data-driven hypotheses; compare intuition vs data |
-| **Planning** | Manual; rationale not quantified | Schedules and content choices informed by expected participation |
-| **Retrospective** | Impression-based | Before/after and trends visible in data |
+### 4. As-Is と To-Be（Phase 1）
 
-### 5. Scope (Phase 1)
+| 観点 | As-Is | To-Be（Phase 1） |
+|------|--------|------------------|
+| **現状把握** | 主観的な活動感覚、定量履歴なし | 継続的な収集・蓄積、曜日・時間帯ごとの傾向をダッシュボードで表示 |
+| **仮説** | 経験に基づく（例：「週末の方が多い」） | データに基づく仮説、直感とデータの乖離を確認可能 |
+| **計画** | 手作業、根拠が定量化されない | 期待参加率等を踏まえた日程・内容の選択 |
+| **検証・改善** | 印象ベース | 施策前後の変化・トレンドをデータで把握可能 |
 
-**In scope**
+### 5. スコープ（Phase 1）
 
-- Discord API integration to retrieve activity data.
-- Storage in Databricks (e.g. Bronze/Silver/Gold).
-- Aggregation logic.
-- Visualization via dashboards.
+**スコープ内**
 
-**Out of scope (Phase 1)**
+- Discord API 連携による活動データの取得
+- Databricks への蓄積（Bronze/Silver/Gold）
+- 集計ロジックの実装
+- ダッシュボードによる可視化
 
-- Automatic event schedule or content suggestions.
-- Community management via chatbots.
-- Predictive or optimization algorithms.
-- Production-grade availability and full monitoring design.
-- Full CI/CD between GitHub and Databricks.
+**スコープ外（Phase 1）**
 
-### 6. Data Architecture (Concept)
+- イベント日程・内容の自動提案
+- チャットボットによるコミュニティ運営
+- 予測・最適化アルゴリズム
+- 本番レベルの可用性・監視設計
+- GitHub と Databricks の完全な CI/CD 連携
 
-| Stage | Purpose | Strategy |
-|-------|--------|----------|
-| **Bronze** | Raw Discord API / event data | Append-only; schema evolution with `mergeSchema` |
-| **Silver** | Cleansed, validated activity (e.g. by user, channel, timestamp) | SCD Type 2 where needed; DLT preferred; quarantine for invalid rows |
-| **Gold** | Aggregations (e.g. by day of week, hour) for dashboards | Overwrite with `overwriteSchema` where full refresh |
+### 6. データアーキテクチャ（概念）
 
-Write modes and naming follow [standards](standards/00-core/) and [Data Engineering Best Practices](standards/02-platform/Data_Engineering_Best_Practices.md).
+| 段階 | 目的 | 方針 |
+|------|------|------|
+| **Bronze** | Discord API / イベントの生データ | 追加のみ、`mergeSchema` でスキーマ進化 |
+| **Silver** | クレンジング・検証済み活動（ユーザー、チャネル、タイムスタンプ等） | 必要に応じて SCD Type 2、DLT 推奨、不正行は検疫 |
+| **Gold** | ダッシュボード用集計（曜日、時間帯等） | フルリフレッシュ時は `overwriteSchema` で上書き |
 
-### 7. Team Structure
+書き込みモードと命名は [標準](standards/00-core/) および [データエンジニアリングベストプラクティス](standards/02-platform/Data_Engineering_Best_Practices.md) に従う。
 
-| Role | Main responsibilities |
-|------|----------------------|
-| **PM / Data Engineer** | Requirements, project management, implementation |
-| **Tech Lead** | Technical design, review, quality assurance |
+### 7. チーム構成
 
----
+| 役割 | 主な責任 |
+|------|----------|
+| **PM / データエンジニア** | 要件定義、プロジェクト管理、実装 |
+| **テックリード** | 技術設計、レビュー、品質保証 |
 
-## Notes
-
-This project intentionally focuses on **observability and explainability** in its first phase.  
-Future phases may explore automation and AI-based support, but Phase 1 prioritizes building a reliable foundation.
+意思決定：スコープ・優先度は PM、技術方針はテックリード（要件定義 5.2 に準拠）。
 
 ---
 
-## Contact
+## 備考
 
-- **Repository**: [Add repository URL]
-- **Project**: jedai_pj — Discord Community Activity Visualization Platform (Phase 1)
+Phase 1 では意図的に**可観測性と説明可能性**に注力する。  
+将来の Phase で自動化や AI 支援を検討するが、Phase 1 では信頼できる基盤の構築を優先する。
 
 ---
 
-**Created**: 2025  
-**Last Updated**: 2026  
-**Author**: jedai_pj team
+## 連絡先
+
+- **リポジトリ**：[リポジトリ URL を追加]
+- **プロジェクト**：jedai_pj — Discord コミュニティ活動可視化プラットフォーム（Phase 1）
+
+---
+
+**作成**：2025  
+**最終更新**：2026  
+**著者**：jedai_pj チーム
