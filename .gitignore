@@ -3,5 +3,5 @@
 .env.*
 !.env.example
 
-# Sample folder
-sample/
+# Example folder
+example/
