@@ -318,6 +318,7 @@ pip install -r requirements.txt   # 存在する場合
 
 - `DATABRICKS_HOST`、`DATABRICKS_TOKEN`、カタログ・スキーマを必要に応じて設定
 - Discord API の認証情報は Databricks Secrets に保存し、リポジトリにコミットしない
+- **Discord 活動収集ボット**（`scripts/01_setup/bot.py`）を動かす場合は、**リポジトリルート**から起動すること。例: `cd jedai_pj && python scripts/01_setup/bot.py`。出力は `data/bronze/` に保存される。環境変数 `DISCORD_BOT_TOKEN` を設定すること。
 
 ### 5. セットアップスクリプトの実行
 
