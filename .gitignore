@@ -10,9 +10,5 @@ __pycache__/
 *.pyc
 *.pyo
 
-# Collected data (run bot to regenerate)
-data/raw/
-data/bronze/
-
 # Example folder
 example/
