@@ -1,4 +1,4 @@
-# Discord 活動データ収集ボット（scripts/01_setup/bot.py）および共通依存
+# Discord bot (scripts/01_setup/bot.py) and shared deps
 discord.py>=2.0.0
 python-dotenv>=1.0.0
 aiohttp>=3.8.0

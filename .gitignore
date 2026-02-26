@@ -4,5 +4,15 @@
 !.env.example
 .DS_Store
 
+# Python
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+
+# Collected data (run bot to regenerate)
+data/raw/
+data/bronze/
+
 # Example folder
 example/
