@@ -1,10 +1,10 @@
 # =============================================================================
-# タイトル: Discord 活動データ収集ボット（Raw 層 JSONL + Databricks 直接書き込み）
+# タイトル: Discord 活動データ収集ボット（Databricks 直接書き込みのみ）
 # =============================================================================
 # サマリー:
-#   Discord のメッセージ受信とボイス状態更新を収集し、
-#   (1) data/raw/ の JSONL に保存、(2) 指定した Databricks カタログ・スキーマの
-#   テーブルに直接 INSERT する。
+#   Discord のメッセージ受信・ボイス状態更新・日次ギルドチャンネル一覧を、
+#   指定した Databricks カタログ・スキーマのテーブルにのみ直接 INSERT する。
+#   JSONL 等のローカルファイル保存は行わない。
 #
 # =============================================================================
 # 実行前提
@@ -13,27 +13,28 @@
 #
 # 前提条件:
 #   - DISCORD_BOT_TOKEN を .env または環境変数に設定。
-#   - Databricks へ書き込む場合: .env に次を設定。
+#   - 保存先を使う場合: .env に Databricks 設定を記載。
 #     DATABRICKS_SQL_WAREHOUSE_SERVER_HOSTNAME, DATABRICKS_SQL_WAREHOUSE_HTTP_PATH,
 #     DATABRICKS_ACCESS_TOKEN, DATABRICKS_CATALOG, DATABRICKS_SCHEMA
+#   - Databricks 未設定時はメッセージ・ボイス・チャンネルいずれも保存先なし（INSERT しない）。
 #   - Developer Portal: Message Content Intent 有効。権限: メッセージ履歴・ボイス状態閲覧。
 #
-# 出力:
-#   - data/raw/ に discord_messages_raw.jsonl, discord_voice_activity_raw.jsonl
-#   - Databricks: <DATABRICKS_CATALOG>.<DATABRICKS_SCHEMA>.discord_messages_raw /
-#     discord_voice_activity_raw に同一データを INSERT
+# 出力（Databricks 有効時のみ）:
+#   - <DATABRICKS_CATALOG>.<DATABRICKS_SCHEMA>.discord_messages_raw
+#   - <DATABRICKS_CATALOG>.<DATABRICKS_SCHEMA>.discord_voice_activity_raw
+#   - <DATABRICKS_CATALOG>.<DATABRICKS_SCHEMA>.discord_channels_raw（日次スナップショット）
+#
+# 再起動: 既存の bot プロセスを停止し、上記コマンドで再実行する。
 # =============================================================================
 
 import asyncio
-import json
 import logging
 import os
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
-import aiofiles
 import discord
 from discord.ext import commands
 from dotenv import load_dotenv
@@ -44,6 +45,17 @@ try:
     from databricks import sql as _databricks_sql
 except ImportError:
     _databricks_sql = None  # type: ignore[assignment]
+
+# 日次チャンネル同期: fetch_guild_info の API を再利用（同ディレクトリ）
+import sys
+_BOT_SCRIPT_DIR = Path(__file__).resolve().parent
+if str(_BOT_SCRIPT_DIR) not in sys.path:
+    sys.path.insert(0, str(_BOT_SCRIPT_DIR))
+from fetch_guild_info import (
+    filter_channel,
+    get_bot_guilds,
+    get_guild_channels,
+)
 
 # ボイス「待機」セッション: (guild_id, user_id) -> { session_id, joined_at, channel_*, ... }
 _voice_pending: Dict[tuple[str, str], Dict[str, Any]] = {}
@@ -63,16 +75,10 @@ intents.voice_states = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
 
-# データ保存用ディレクトリ（リポジトリルート/data/raw）
-_SCRIPT_DIR = Path(__file__).resolve().parent
-_REPO_ROOT = _SCRIPT_DIR.parent.parent
-DATA_DIR = _REPO_ROOT / "data" / "raw"
-DATA_DIR.mkdir(parents=True, exist_ok=True)
-
 # タイムスタンプ形式: yyyy-MM-dd HH:mm:ss（Databricks・人間可読）
 TS_FORMAT = "%Y-%m-%d %H:%M:%S"
 
-# Databricks 設定（未設定の場合は JSONL のみ）
+# Databricks 設定（未設定の場合は保存先なし）
 _DB_HOST = os.getenv("DATABRICKS_SQL_WAREHOUSE_SERVER_HOSTNAME")
 _DB_HTTP_PATH = os.getenv("DATABRICKS_SQL_WAREHOUSE_HTTP_PATH")
 _DB_TOKEN = os.getenv("DATABRICKS_ACCESS_TOKEN")
@@ -89,25 +95,6 @@ def format_ts(dt: Optional[datetime]) -> Optional[str]:
     if getattr(dt, "microsecond", 0):
         base += f".{dt.microsecond:06d}".rstrip("0").rstrip(".")
     return base
-
-
-async def _append_jsonl(path: Path, data: Dict[str, Any]) -> None:
-    """1行 JSON をファイルに非同期で追記する。I/O 失敗時はログして再送出する。"""
-    try:
-        line = json.dumps(data, ensure_ascii=False) + "\n"
-        async with aiofiles.open(path, "a", encoding="utf-8") as f:
-            await f.write(line)
-    except OSError as e:
-        logger.error(
-            "File I/O failed in _append_jsonl",
-            extra={
-                "path": str(path),
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-            },
-            exc_info=True,
-        )
-        raise
 
 
 # ----- Databricks 直接書き込み（同期処理は Executor で実行） -----
@@ -129,7 +116,7 @@ def _db_connect_sync() -> Any:
 
 
 def _db_ensure_tables_sync() -> None:
-    """カタログ・スキーマ内に discord_messages_raw / discord_voice_activity_raw を作成。"""
+    """カタログ・スキーマ内に discord_messages_raw / discord_voice_activity_raw / discord_channels_raw を作成。"""
     if not _DATABRICKS_ENABLED:
         return
     conn = _db_connect_sync()
@@ -166,13 +153,25 @@ def _db_ensure_tables_sync() -> None:
         left_at STRING
     )
     """
+    channels_sql = f"""
+    CREATE TABLE IF NOT EXISTS {catalog}.{schema}.discord_channels_raw (
+        snapshot_date STRING,
+        guild_id STRING,
+        guild_name STRING,
+        channel_id STRING,
+        channel_type INT,
+        channel_name STRING,
+        parent_id STRING
+    )
+    """
     try:
         with conn.cursor() as cur:
             cur.execute(messages_sql)
             cur.execute(voice_sql)
+            cur.execute(channels_sql)
         conn.commit()
         logger.info(
-            "Databricks tables created/verified: %s.%s.discord_messages_raw, discord_voice_activity_raw",
+            "Databricks tables created/verified: %s.%s.discord_messages_raw, discord_voice_activity_raw, discord_channels_raw",
             catalog,
             schema,
         )
@@ -251,6 +250,46 @@ def _db_insert_voice_sync(data: Dict[str, Any]) -> None:
     conn.commit()
 
 
+def _db_insert_channels_batch_sync(rows: List[Dict[str, Any]]) -> None:
+    """日次チャンネルスナップショット行を discord_channels_raw に一括 INSERT。Executor 内で呼ぶ。"""
+    if not _DATABRICKS_ENABLED or not rows:
+        return
+    conn = _db_connect_sync()
+    if conn is None:
+        return
+    catalog, schema = _DB_CATALOG, _DB_SCHEMA
+    sql = f"""
+    INSERT INTO {catalog}.{schema}.discord_channels_raw (
+        snapshot_date, guild_id, guild_name, channel_id, channel_type, channel_name, parent_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+    """
+    try:
+        with conn.cursor() as cur:
+            for r in rows:
+                cur.execute(sql, [
+                    r.get("snapshot_date"),
+                    r.get("guild_id"),
+                    r.get("guild_name") or "",
+                    r.get("channel_id"),
+                    r.get("channel_type"),
+                    r.get("channel_name") or "",
+                    r.get("parent_id"),
+                ])
+        conn.commit()
+        logger.info(
+            "Databricks discord_channels_raw: inserted %d rows",
+            len(rows),
+            extra={"row_count": len(rows)},
+        )
+    except Exception as e:
+        logger.error(
+            "Databricks discord_channels_raw INSERT failed: %s",
+            e,
+            exc_info=True,
+        )
+        raise
+
+
 async def _run_db_sync(fn: Any, *args: Any, **kwargs: Any) -> None:
     """同期の DB 処理を Executor で実行。失敗時は ERROR でログ（ボットは継続）。"""
     global _db_executor
@@ -270,6 +309,120 @@ async def _run_db_sync(fn: Any, *args: Any, **kwargs: Any) -> None:
         )
 
 
+# ----- 日次チャンネル同期（REST + JSONL は Executor で実行） -----
+
+
+def _run_daily_channel_fetch_sync(token: str) -> List[Dict[str, Any]]:
+    """
+    全参加ギルドのチャンネルを取得し、JSONL に保存して DB 用行リストを返す。
+    同期関数。REST とファイル I/O を行うため、呼び出し元は Executor で実行すること。
+    """
+    from urllib.error import HTTPError, URLError
+
+    snapshot_date = datetime.now(timezone.utc).strftime("%Y-%m-%d")
+    rows: List[Dict[str, Any]] = []
+
+    try:
+        guilds = get_bot_guilds(token)
+    except (HTTPError, URLError, ValueError) as e:
+        logger.error(
+            "Daily channel sync: get_bot_guilds failed: %s",
+            e,
+            extra={"error_type": type(e).__name__},
+            exc_info=True,
+        )
+        return rows
+
+    if not guilds:
+        logger.info("Daily channel sync: no guilds joined")
+        return rows
+
+    for g in guilds:
+        guild_id = g.get("id")
+        guild_name = g.get("name") or ""
+        if guild_id is None:
+            continue
+        guild_id_str = str(guild_id).strip()
+        try:
+            channels = get_guild_channels(token, guild_id_str)
+        except (HTTPError, URLError, ValueError) as e:
+            logger.warning(
+                "Daily channel sync: get_guild_channels failed for guild %s: %s",
+                guild_id_str,
+                e,
+                extra={"guild_id": guild_id_str, "error_type": type(e).__name__},
+            )
+            continue
+        filtered = [filter_channel(ch) for ch in channels]
+        for ch in filtered:
+            ch_id = ch.get("id")
+            if ch_id is None:
+                continue
+            rows.append({
+                "snapshot_date": snapshot_date,
+                "guild_id": guild_id_str,
+                "guild_name": guild_name,
+                "channel_id": str(ch_id),
+                "channel_type": int(ch.get("type", 0)),
+                "channel_name": (ch.get("name") or ""),
+                "parent_id": str(ch["parent_id"]) if ch.get("parent_id") is not None else None,
+            })
+
+    logger.info(
+        "Daily channel sync: fetched %d guild(s), %d channel rows",
+        len(guilds),
+        len(rows),
+        extra={"guild_count": len(guilds), "row_count": len(rows)},
+    )
+    return rows
+
+
+async def daily_channel_sync_loop() -> None:
+    """
+    日次でチャンネル同期を実行するループ。
+    初回は起動直後に1回実行（テスト用に discord_channels_raw 作成・書き込みを確認）、
+    以降は次の UTC 0 時から 24 時間ごとに実行する。
+    REST とファイル I/O は Executor で実行し、Databricks 書き込みは _run_db_sync で実行する。
+    """
+    token = os.getenv("DISCORD_BOT_TOKEN") or ""
+    if not token.strip():
+        logger.warning("Daily channel sync: DISCORD_BOT_TOKEN not set, skipping loop")
+        return
+
+    def _wait_until_next_midnight_utc_seconds() -> float:
+        now = datetime.now(timezone.utc)
+        next_midnight = now.replace(hour=0, minute=0, second=0, microsecond=0) + timedelta(days=1)
+        return (next_midnight - now).total_seconds()
+
+    first_run = True
+    while True:
+        if not first_run:
+            delay = _wait_until_next_midnight_utc_seconds()
+            if delay > 0:
+                logger.info("Daily channel sync: next run in %.0f s (at next midnight UTC)", delay)
+                await asyncio.sleep(delay)
+        else:
+            logger.info("Daily channel sync: running once immediately (test run)")
+            first_run = False
+
+        loop = asyncio.get_event_loop()
+        try:
+            rows = await loop.run_in_executor(None, _run_daily_channel_fetch_sync, token.strip())
+        except Exception as e:
+            logger.error(
+                "Daily channel sync: fetch failed: %s",
+                e,
+                exc_info=True,
+            )
+            await asyncio.sleep(86400)
+            continue
+
+        if rows and _DATABRICKS_ENABLED:
+            await _run_db_sync(_db_insert_channels_batch_sync, rows)
+
+        await asyncio.sleep(86400)
+
+
 # ----- イベントハンドラ -----
 
 
@@ -282,6 +435,7 @@ async def on_ready():
             "Databricks tables ensured",
             extra={"catalog": _DB_CATALOG, "schema": _DB_SCHEMA},
         )
+    asyncio.create_task(daily_channel_sync_loop())
 
 
 @bot.event
@@ -309,7 +463,7 @@ async def on_voice_state_update(
 
 
 async def save_message_data(message: discord.Message) -> None:
-    """メッセージデータを Raw 用に保存。3NF 用に id（数値 ID の文字列）と name（表示名）を揃える。"""
+    """メッセージデータを Databricks の discord_messages_raw にのみ書き込む。"""
     data = {
         "message_id": str(message.id),
         "channel_id": str(message.channel.id),
@@ -325,19 +479,6 @@ async def save_message_data(message: discord.Message) -> None:
         "reaction_count": len(message.reactions),
         "is_pinned": message.pinned,
     }
-    path = DATA_DIR / "discord_messages_raw.jsonl"
-    try:
-        await _append_jsonl(path, data)
-    except OSError as e:
-        logger.error(
-            "save_message_data failed",
-            extra={
-                "message_id": str(message.id),
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-            },
-        )
-        raise
     await _run_db_sync(_db_insert_message_sync, data)
 
 
@@ -372,15 +513,14 @@ async def save_voice_activity_data(
     before: discord.VoiceState,
     after: discord.VoiceState,
 ) -> None:
-    """ボイス活動を Raw 用に保存。参加時は待機状態（メモリに保持）のみ、退出時に joined_at と left_at を同一行で1回だけ書き込む。"""
+    """ボイス活動を Databricks の discord_voice_activity_raw にのみ書き込む。参加時は待機状態（メモリに保持）、退出時に1行 INSERT。"""
     if before.channel == after.channel:
         return
     ts_str = format_ts(datetime.now(timezone.utc))
     key = (str(member.guild.id), str(member.id))
-    path = DATA_DIR / "discord_voice_activity_raw.jsonl"
 
     if after.channel:
-        # 入室: 待機状態としてメモリに保存（ファイルには書かない）
+        # 入室: 待機状態としてメモリに保存
         session_id = f"{member.id}_{datetime.now(timezone.utc).timestamp()}"
         _voice_pending[key] = {
             "session_id": session_id,
@@ -394,47 +534,35 @@ async def save_voice_activity_data(
         }
         return
 
-    # 退室: 待機していたセッションを同じ行（joined_at + left_at）で1行だけ書き込む
+    # 退室: 待機していたセッションを1行で Databricks に INSERT
     pending = _voice_pending.pop(key, None)
-    try:
-        if pending:
-            data = _build_voice_record(
-                session_id=pending["session_id"],
-                channel_id=pending["channel_id"],
-                channel_name=pending["channel_name"],
-                user_id=pending["user_id"],
-                user_name=pending["user_name"],
-                guild_id=pending["guild_id"],
-                guild_name=pending["guild_name"],
-                joined_at=pending["joined_at"],
-                left_at=ts_str,
-            )
-        else:
-            # ボット起動前に入室していたなど、待機データがない場合は left_at のみで1行書く
-            ch = before.channel
-            data = _build_voice_record(
-                session_id=f"{member.id}_{datetime.now(timezone.utc).timestamp()}",
-                channel_id=str(ch.id),
-                channel_name=ch.name,
-                user_id=str(member.id),
-                user_name=member.name,
-                guild_id=str(member.guild.id),
-                guild_name=member.guild.name,
-                joined_at=None,
-                left_at=ts_str,
-            )
-        await _append_jsonl(path, data)
-        await _run_db_sync(_db_insert_voice_sync, data)
-    except OSError as e:
-        logger.error(
-            "save_voice_activity_data failed",
-            extra={
-                "member_id": str(member.id),
-                "error_type": type(e).__name__,
-                "error_message": str(e),
-            },
+    if pending:
+        data = _build_voice_record(
+            session_id=pending["session_id"],
+            channel_id=pending["channel_id"],
+            channel_name=pending["channel_name"],
+            user_id=pending["user_id"],
+            user_name=pending["user_name"],
+            guild_id=pending["guild_id"],
+            guild_name=pending["guild_name"],
+            joined_at=pending["joined_at"],
+            left_at=ts_str,
         )
-        raise
+    else:
+        # ボット起動前に入室していたなど、待機データがない場合
+        ch = before.channel
+        data = _build_voice_record(
+            session_id=f"{member.id}_{datetime.now(timezone.utc).timestamp()}",
+            channel_id=str(ch.id),
+            channel_name=ch.name,
+            user_id=str(member.id),
+            user_name=member.name,
+            guild_id=str(member.guild.id),
+            guild_name=member.guild.name,
+            joined_at=None,
+            left_at=ts_str,
+        )
+    await _run_db_sync(_db_insert_voice_sync, data)
 
 
 # ----- エントリポイント -----
