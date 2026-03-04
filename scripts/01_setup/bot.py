@@ -115,6 +115,24 @@ def _db_connect_sync() -> Any:
     return _db_connection
 
 
+def _is_session_closed_error(exc: Exception) -> bool:
+    """Databricks のセッション切れ・無効セッション系エラーかどうかを判定する。"""
+    msg = str(exc).lower()
+    return "session" in msg and ("closed" in msg or ("invalid" in msg and "sessionhandle" in msg))
+
+
+def _db_clear_connection() -> None:
+    """グローバル DB 接続を破棄する。セッション切れ後に再接続させるために使う。"""
+    global _db_connection
+    if _db_connection is not None:
+        try:
+            _db_connection.close()
+        except Exception:  # noqa: S110
+            pass
+        _db_connection = None
+        logger.info("Databricks: connection cleared for reconnection")
+
+
 def _db_ensure_tables_sync() -> None:
     """カタログ・スキーマ内に discord_messages_raw / discord_voice_activity_raw / discord_channels_raw を作成。"""
     if not _DATABRICKS_ENABLED:
@@ -161,7 +179,7 @@ def _db_ensure_tables_sync() -> None:
         channel_id STRING,
         channel_type INT,
         channel_name STRING,
-        parent_id STRING
+        category_id STRING
     )
     """
     try:
@@ -260,7 +278,7 @@ def _db_insert_channels_batch_sync(rows: List[Dict[str, Any]]) -> None:
     catalog, schema = _DB_CATALOG, _DB_SCHEMA
     sql = f"""
     INSERT INTO {catalog}.{schema}.discord_channels_raw (
-        snapshot_date, guild_id, guild_name, channel_id, channel_type, channel_name, parent_id
+        snapshot_date, guild_id, guild_name, channel_id, channel_type, channel_name, category_id
     ) VALUES (?, ?, ?, ?, ?, ?, ?)
     """
     try:
@@ -273,7 +291,7 @@ def _db_insert_channels_batch_sync(rows: List[Dict[str, Any]]) -> None:
                     r.get("channel_id"),
                     r.get("channel_type"),
                     r.get("channel_name") or "",
-                    r.get("parent_id"),
+                    r.get("category_id"),
                 ])
         conn.commit()
         logger.info(
@@ -291,22 +309,42 @@ def _db_insert_channels_batch_sync(rows: List[Dict[str, Any]]) -> None:
 
 
 async def _run_db_sync(fn: Any, *args: Any, **kwargs: Any) -> None:
-    """同期の DB 処理を Executor で実行。失敗時は ERROR でログ（ボットは継続）。"""
+    """同期の DB 処理を Executor で実行。セッション切れ時は接続を破棄して1回だけリトライ。失敗時は ERROR でログ（ボットは継続）。"""
     global _db_executor
     if not _DATABRICKS_ENABLED:
         return
     if _db_executor is None:
         logger.error("Databricks: _db_executor is None (tables/inserts will be skipped)")
         return
+    loop = asyncio.get_event_loop()
+
+    def _run() -> None:
+        fn(*args, **kwargs)
+
     try:
-        loop = asyncio.get_event_loop()
-        await loop.run_in_executor(_db_executor, lambda: fn(*args, **kwargs))
+        await loop.run_in_executor(_db_executor, _run)
     except Exception as e:
-        logger.error(
-            "Databricks INSERT failed: %s. Check token has MODIFY on table and SQL warehouse is DBR >= 14.2 for parameters.",
-            e,
-            exc_info=True,
-        )
+        if _is_session_closed_error(e):
+            logger.warning(
+                "Databricks session closed, clearing connection and retrying once: %s",
+                e,
+            )
+            await loop.run_in_executor(_db_executor, _db_clear_connection)
+            try:
+                await loop.run_in_executor(_db_executor, _run)
+                logger.info("Databricks: retry after reconnection succeeded")
+            except Exception as retry_e:
+                logger.error(
+                    "Databricks INSERT failed after reconnection: %s",
+                    retry_e,
+                    exc_info=True,
+                )
+        else:
+            logger.error(
+                "Databricks INSERT failed: %s. Check token has MODIFY on table and SQL warehouse is DBR >= 14.2 for parameters.",
+                e,
+                exc_info=True,
+            )
 
 
 # ----- 日次チャンネル同期（REST + JSONL は Executor で実行） -----
@@ -365,7 +403,7 @@ def _run_daily_channel_fetch_sync(token: str) -> List[Dict[str, Any]]:
                 "channel_id": str(ch_id),
                 "channel_type": int(ch.get("type", 0)),
                 "channel_name": (ch.get("name") or ""),
-                "parent_id": str(ch["parent_id"]) if ch.get("parent_id") is not None else None,
+                "category_id": str(ch["parent_id"]) if ch.get("parent_id") is not None else None,
             })
 
     logger.info(
