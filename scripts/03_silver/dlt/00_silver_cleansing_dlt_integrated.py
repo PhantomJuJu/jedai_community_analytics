@@ -1,18 +1,16 @@
-# Databricks notebook source
-# MAGIC %md
-# MAGIC # Lakeflow Spark Declarative Pipeline: Bronze → Silver (Discord Star Schema)
-# MAGIC
-# MAGIC Reads from `kazuki_jedai.bronze` and writes to `kazuki_jedai.silver`.
-# MAGIC Run as a **Delta Live Tables (DLT)** pipeline in Databricks.
-# MAGIC
-# MAGIC **Bronze sources:** discord_channels_raw, discord_messages_raw, discord_voice_activity_raw  
-# MAGIC **Silver targets:** guild_dim, user_dim, category_dim, channel_dim, message_fact, voice_chat_fact  
-# MAGIC
-# MAGIC **Author:** Cheng Wang  
-# MAGIC **Contact:** cheng.wang@myteam.com  
-# MAGIC **Date / Last Modified:** 2026-03-04
+"""
+Lakeflow Spark Declarative Pipeline: Bronze → Silver (Discord Star Schema)
 
-# COMMAND ----------
+Reads from `kazuki_jedai.bronze` and writes to `kazuki_jedai.silver`.
+Run as a Delta Live Tables (DLT) pipeline in Databricks.
+
+Bronze sources: discord_channels_raw, discord_messages_raw, discord_voice_activity_raw
+Silver targets: guild_dim, user_dim, category_dim, channel_dim, message_fact, voice_chat_fact
+
+Author: Cheng Wang
+Contact: cheng.wang@myteam.com
+Date / Last Modified: 2026-03-04
+"""
 
 import dlt
 from pyspark.sql import functions as F
@@ -21,7 +19,6 @@ from pyspark.sql.window import Window
 CATALOG = "kazuki_jedai"
 BRONZE_SCHEMA = f"{CATALOG}.bronze"
 
-# COMMAND ----------
 
 def _safe_bigint(col_name: str):
     """Cast column to BIGINT; handles STRING or numeric types from bronze."""
@@ -37,12 +34,11 @@ def _safe_date(col_name: str):
     """Parse string or date to DATE."""
     return F.to_date(F.col(col_name)).alias(col_name)
 
-# COMMAND ----------
 
-# MAGIC %md
-# MAGIC ## Dimensions (from channels + messages + voice)
+# -----------------------------------------------------------------------------
+# Dimensions (from channels + messages + voice)
+# -----------------------------------------------------------------------------
 
-# COMMAND ----------
 
 @dlt.table(
     name="guild_dim",
@@ -61,8 +57,6 @@ def guild_dim():
         .filter(F.col("guild_id").isNotNull())
     )
 
-
-# COMMAND ----------
 
 @dlt.table(
     name="category_dim",
@@ -87,8 +81,6 @@ def category_dim():
     )
 
 
-# COMMAND ----------
-
 @dlt.table(
     name="channel_dim",
     comment="Silver dimension: one row per unique channel per snapshot_date.",
@@ -108,8 +100,6 @@ def channel_dim():
         ).alias("category_id"),
     ).filter(F.col("channel_id").isNotNull())
 
-
-# COMMAND ----------
 
 @dlt.table(
     name="user_dim",
@@ -133,12 +123,10 @@ def user_dim():
     )
 
 
-# COMMAND ----------
+# -----------------------------------------------------------------------------
+# Facts (depend on dimensions)
+# -----------------------------------------------------------------------------
 
-# MAGIC %md
-# MAGIC ## Facts (depend on dimensions)
-
-# COMMAND ----------
 
 @dlt.table(
     name="channel_latest",
@@ -159,8 +147,6 @@ def channel_latest():
         .drop("_rn", "snapshot_date", "channel_type", "channel_name")
     )
 
-
-# COMMAND ----------
 
 @dlt.table(
     name="message_fact",
@@ -200,8 +186,6 @@ def message_fact():
         .filter(F.col("message_id").isNotNull())
     )
 
-
-# COMMAND ----------
 
 @dlt.table(
     name="voice_chat_fact",
