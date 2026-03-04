@@ -146,6 +146,7 @@ def _db_ensure_tables_sync() -> None:
         message_id STRING,
         channel_id STRING,
         channel_name STRING,
+        category_id BIGINT,
         guild_id STRING,
         guild_name STRING,
         user_id STRING,
@@ -163,6 +164,7 @@ def _db_ensure_tables_sync() -> None:
         session_id STRING,
         channel_id STRING,
         channel_name STRING,
+        category_id BIGINT,
         user_id STRING,
         user_name STRING,
         guild_id STRING,
@@ -179,7 +181,7 @@ def _db_ensure_tables_sync() -> None:
         channel_id STRING,
         channel_type INT,
         channel_name STRING,
-        category_id STRING
+        category_id BIGINT
     )
     """
     try:
@@ -213,15 +215,16 @@ def _db_insert_message_sync(data: Dict[str, Any]) -> None:
     # Use positional ? (qmark) per Databricks SQL connector docs
     sql = f"""
     INSERT INTO {catalog}.{schema}.discord_messages_raw (
-        message_id, channel_id, channel_name, guild_id, guild_name,
+        message_id, channel_id, channel_name, category_id, guild_id, guild_name,
         user_id, user_name, content, timestamp, edited_timestamp,
         attachment_count, reaction_count, is_pinned
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     params = [
         data.get("message_id"),
         data.get("channel_id"),
         data.get("channel_name"),
+        int(data["category_id"]) if data.get("category_id") is not None else None,
         data.get("guild_id"),
         data.get("guild_name"),
         data.get("user_id"),
@@ -248,14 +251,15 @@ def _db_insert_voice_sync(data: Dict[str, Any]) -> None:
     catalog, schema = _DB_CATALOG, _DB_SCHEMA
     sql = f"""
     INSERT INTO {catalog}.{schema}.discord_voice_activity_raw (
-        session_id, channel_id, channel_name, user_id, user_name,
+        session_id, channel_id, channel_name, category_id, user_id, user_name,
         guild_id, guild_name, joined_at, left_at
-    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     """
     params = [
         data.get("session_id"),
         data.get("channel_id"),
         data.get("channel_name"),
+        int(data["category_id"]) if data.get("category_id") is not None else None,
         data.get("user_id"),
         data.get("user_name"),
         data.get("guild_id"),
@@ -291,7 +295,7 @@ def _db_insert_channels_batch_sync(rows: List[Dict[str, Any]]) -> None:
                     r.get("channel_id"),
                     r.get("channel_type"),
                     r.get("channel_name") or "",
-                    r.get("category_id"),
+                    int(r["category_id"]) if r.get("category_id") is not None else None,
                 ])
         conn.commit()
         logger.info(
@@ -403,7 +407,7 @@ def _run_daily_channel_fetch_sync(token: str) -> List[Dict[str, Any]]:
                 "channel_id": str(ch_id),
                 "channel_type": int(ch.get("type", 0)),
                 "channel_name": (ch.get("name") or ""),
-                "category_id": str(ch["parent_id"]) if ch.get("parent_id") is not None else None,
+                "category_id": int(ch["parent_id"]) if ch.get("parent_id") is not None else None,
             })
 
     logger.info(
@@ -502,10 +506,12 @@ async def on_voice_state_update(
 
 async def save_message_data(message: discord.Message) -> None:
     """メッセージデータを Databricks の discord_messages_raw にのみ書き込む。"""
+    cat_id = getattr(message.channel, "category_id", None)
     data = {
         "message_id": str(message.id),
         "channel_id": str(message.channel.id),
         "channel_name": message.channel.name if hasattr(message.channel, "name") else None,
+        "category_id": int(cat_id) if cat_id is not None else None,
         "guild_id": str(message.guild.id) if message.guild else None,
         "guild_name": message.guild.name if message.guild else None,
         "user_id": str(message.author.id),
@@ -525,6 +531,7 @@ def _build_voice_record(
     session_id: str,
     channel_id: str,
     channel_name: str,
+    category_id: Optional[int],
     user_id: str,
     user_name: str,
     guild_id: str,
@@ -537,6 +544,7 @@ def _build_voice_record(
         "session_id": session_id,
         "channel_id": channel_id,
         "channel_name": channel_name,
+        "category_id": category_id,
         "user_id": user_id,
         "user_name": user_name,
         "guild_id": guild_id,
@@ -559,11 +567,13 @@ async def save_voice_activity_data(
 
     if after.channel:
         # 入室: 待機状態としてメモリに保存
+        cat_id = getattr(after.channel, "category_id", None)
         session_id = f"{member.id}_{datetime.now(timezone.utc).timestamp()}"
         _voice_pending[key] = {
             "session_id": session_id,
             "channel_id": str(after.channel.id),
             "channel_name": after.channel.name,
+            "category_id": int(cat_id) if cat_id is not None else None,
             "user_id": str(member.id),
             "user_name": member.name,
             "guild_id": str(member.guild.id),
@@ -579,6 +589,7 @@ async def save_voice_activity_data(
             session_id=pending["session_id"],
             channel_id=pending["channel_id"],
             channel_name=pending["channel_name"],
+            category_id=pending.get("category_id"),
             user_id=pending["user_id"],
             user_name=pending["user_name"],
             guild_id=pending["guild_id"],
@@ -589,10 +600,12 @@ async def save_voice_activity_data(
     else:
         # ボット起動前に入室していたなど、待機データがない場合
         ch = before.channel
+        cat_id = getattr(ch, "category_id", None)
         data = _build_voice_record(
             session_id=f"{member.id}_{datetime.now(timezone.utc).timestamp()}",
             channel_id=str(ch.id),
             channel_name=ch.name,
+            category_id=int(cat_id) if cat_id is not None else None,
             user_id=str(member.id),
             user_name=member.name,
             guild_id=str(member.guild.id),
