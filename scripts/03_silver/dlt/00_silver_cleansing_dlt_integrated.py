@@ -26,9 +26,9 @@ CATALOG = "kazuki_jedai"
 BRONZE_SCHEMA = f"{CATALOG}.bronze"
 
 
-def _safe_int(col_name: str):
-    """Cast column to INT; handles STRING or numeric types from bronze."""
-    return F.col(col_name).cast("int").alias(col_name)
+def _safe_bigint(col_name: str):
+    """Cast column to BIGINT; handles STRING or numeric types from bronze. Discord IDs are 64-bit."""
+    return F.col(col_name).cast("long").alias(col_name)
 
 
 def _safe_timestamp(col_name: str):
@@ -47,14 +47,13 @@ def _safe_date(col_name: str):
 
 
 def _transform_guild_dim_with_quarantine():
-    """Transform guild_dim with quarantine validation."""
-    df = spark.table(f"{BRONZE_SCHEMA}.discord_channels_raw")
+    """Transform guild_dim with quarantine validation. One row per guild_id (max guild_name)."""
     df = (
-        df.select(
-            _safe_int("guild_id"),
-            F.col("guild_name").cast("string").alias("guild_name"),
-        )
-        .distinct()
+        spark.table(f"{BRONZE_SCHEMA}.discord_channels_raw")
+        .select(_safe_bigint("guild_id"), F.col("guild_name").cast("string").alias("guild_name"))
+        .filter(F.col("guild_id").isNotNull())
+        .groupBy("guild_id")
+        .agg(F.max("guild_name").alias("guild_name"))
     )
     # Add quarantine columns and apply validations
     df = qutils.add_quarantine_columns(df)
@@ -66,11 +65,11 @@ def _transform_guild_dim_with_quarantine():
 
 def _transform_category_dim_with_quarantine():
     """Transform category_dim with quarantine validation."""
-    df = spark.table(f"{BRONZE_SCHEMA}.discord_channels_raw")
     df = (
-        df.filter(F.col("channel_type") == 4)  # Only category channels
+        spark.table(f"{BRONZE_SCHEMA}.discord_channels_raw")
+        .filter(F.col("channel_type") == 4)  # Filter first for predicate pushdown
         .select(
-            F.col("channel_id").cast("int").alias("category_id"),
+            _safe_bigint("channel_id").alias("category_id"),
             F.col("channel_name").cast("string").alias("category_name"),
         )
         .distinct()
@@ -85,17 +84,17 @@ def _transform_category_dim_with_quarantine():
 
 def _transform_channel_dim_with_quarantine():
     """Transform channel_dim with quarantine validation."""
-    df = spark.table(f"{BRONZE_SCHEMA}.discord_channels_raw")
     df = (
-        df.filter(F.col("channel_type") != 4)  # Exclude category channels
+        spark.table(f"{BRONZE_SCHEMA}.discord_channels_raw")
+        .filter(F.col("channel_type") != 4)  # Filter first for predicate pushdown
         .select(
-            _safe_int("channel_id"),
-            _safe_int("guild_id"),
+            _safe_bigint("channel_id"),
+            _safe_bigint("guild_id"),
             F.coalesce(_safe_date("snapshot_date"), F.current_date()).alias("snapshot_date"),
             F.col("channel_type").cast("int").alias("channel_type"),
             F.col("channel_name").cast("string").alias("channel_name"),
-            F.when(F.col("category_id").isNotNull(), F.col("category_id").cast("int"))
-            .otherwise(F.lit(None).cast("int"))
+            F.when(F.col("category_id").isNotNull(), _safe_bigint("category_id"))
+            .otherwise(F.lit(None).cast("long"))
             .alias("category_id"),
         )
     )
@@ -117,16 +116,20 @@ def _transform_channel_dim_with_quarantine():
 
 
 def _transform_user_dim_with_quarantine():
-    """Transform user_dim with quarantine validation."""
+    """Transform user_dim with quarantine validation. One row per user_id (max user_name)."""
     messages = spark.table(f"{BRONZE_SCHEMA}.discord_messages_raw").select(
-        _safe_int("user_id"),
+        _safe_bigint("user_id"),
         F.col("user_name").cast("string").alias("user_name"),
     )
     voice = spark.table(f"{BRONZE_SCHEMA}.discord_voice_activity_raw").select(
-        _safe_int("user_id"),
+        _safe_bigint("user_id"),
         F.col("user_name").cast("string").alias("user_name"),
     )
-    df = messages.unionByName(voice, allowMissingColumns=True).distinct()
+    df = (
+        messages.unionByName(voice, allowMissingColumns=True)
+        .groupBy("user_id")
+        .agg(F.max("user_name").alias("user_name"))
+    )
     
     # Add quarantine columns and apply validations
     df = qutils.add_quarantine_columns(df)
@@ -137,23 +140,21 @@ def _transform_user_dim_with_quarantine():
 
 
 def _transform_message_fact_with_quarantine():
-    """Transform message_fact with quarantine validation."""
-    messages = spark.table(f"{BRONZE_SCHEMA}.discord_messages_raw")
-    ch = dlt.read("channel_latest").select(
-        F.col("channel_id").alias("_ch_channel_id"),
-        F.col("category_id").alias("_ch_category_id"),
+    """Transform message_fact with quarantine validation. category_id from bronze."""
+    messages = (
+        spark.table(f"{BRONZE_SCHEMA}.discord_messages_raw")
+        .filter(F.col("message_id").isNotNull())  # Early filter for dropDuplicates
     )
     ts = F.to_timestamp(F.col("timestamp"))
-    joined = messages.withColumn("_channel_id", F.col("channel_id").cast("int")).join(
-        ch, F.col("_channel_id") == F.col("_ch_channel_id"), "left"
-    )
     df = (
-        joined.select(
-            F.col("message_id").cast("int").alias("message_id"),
-            F.col("_channel_id").alias("channel_id"),
-            F.col("guild_id").cast("int").alias("guild_id"),
-            F.col("user_id").cast("int").alias("user_id"),
-            F.col("_ch_category_id").alias("category_id"),
+        messages.select(
+            _safe_bigint("message_id").alias("message_id"),
+            _safe_bigint("channel_id").alias("channel_id"),
+            _safe_bigint("guild_id").alias("guild_id"),
+            _safe_bigint("user_id").alias("user_id"),
+            F.when(F.col("category_id").isNotNull(), _safe_bigint("category_id"))
+            .otherwise(F.lit(None).cast("long"))
+            .alias("category_id"),
             F.col("content").cast("string").alias("content"),
             F.when(ts.isNotNull(), ts).otherwise(F.current_timestamp()).alias("timestamp"),
             F.to_timestamp(F.col("edited_timestamp")).alias("edited_timestamp"),
@@ -184,27 +185,21 @@ def _transform_message_fact_with_quarantine():
 
 
 def _transform_voice_chat_fact_with_quarantine():
-    """Transform voice_chat_fact with quarantine validation."""
-    voice = spark.table(f"{BRONZE_SCHEMA}.discord_voice_activity_raw")
-    
-    # Join with channel_latest to get category_id
-    ch = dlt.read("channel_latest").select(
-        F.col("channel_id").alias("_ch_channel_id"),
-        F.col("category_id").alias("_ch_category_id"),
+    """Transform voice_chat_fact with quarantine validation. category_id from bronze."""
+    voice = (
+        spark.table(f"{BRONZE_SCHEMA}.discord_voice_activity_raw")
+        .filter(F.col("session_id").isNotNull())  # Early filter for dropDuplicates
     )
-    
     joined_ts = F.to_timestamp(F.col("joined_at"))
-    joined = voice.withColumn("_channel_id", F.col("channel_id").cast("int")).join(
-        ch, F.col("_channel_id") == F.col("_ch_channel_id"), "left"
-    )
-    
     df = (
-        joined.select(
-            F.xxhash64(F.col("session_id")).cast("int").alias("session_id"),
-            F.col("_channel_id").alias("channel_id"),
-            F.col("_ch_category_id").alias("category_id"),
-            F.col("guild_id").cast("int").alias("guild_id"),
-            F.col("user_id").cast("int").alias("user_id"),
+        voice.select(
+            F.xxhash64(F.col("session_id")).cast("long").alias("session_id"),
+            _safe_bigint("channel_id").alias("channel_id"),
+            _safe_bigint("guild_id").alias("guild_id"),
+            _safe_bigint("user_id").alias("user_id"),
+            F.when(F.col("category_id").isNotNull(), _safe_bigint("category_id"))
+            .otherwise(F.lit(None).cast("long"))
+            .alias("category_id"),
             F.when(joined_ts.isNotNull(), joined_ts).otherwise(F.current_timestamp()).alias("joined_at"),
             _safe_timestamp("left_at"),
         )
@@ -228,6 +223,71 @@ def _transform_voice_chat_fact_with_quarantine():
 
 
 # -----------------------------------------------------------------------------
+# Staging tables (compute once; main + quarantined read from these)
+# -----------------------------------------------------------------------------
+
+
+@dlt.table(
+    name="guild_dim_staging",
+    comment="Staging: guild transform with quarantine. Read by guild_dim and guild_dim_quarantined.",
+    table_properties={"pipelines.autoOptimize.managed": "true"},
+)
+def guild_dim_staging():
+    """One transform for both guild_dim and guild_dim_quarantined."""
+    return _transform_guild_dim_with_quarantine()
+
+
+@dlt.table(
+    name="category_dim_staging",
+    comment="Staging: category transform with quarantine. Read by category_dim and category_dim_quarantined.",
+    table_properties={"pipelines.autoOptimize.managed": "true"},
+)
+def category_dim_staging():
+    """One transform for both category_dim and category_dim_quarantined."""
+    return _transform_category_dim_with_quarantine()
+
+
+@dlt.table(
+    name="channel_dim_staging",
+    comment="Staging: channel transform with quarantine. Read by channel_dim and channel_dim_quarantined.",
+    table_properties={"pipelines.autoOptimize.managed": "true"},
+)
+def channel_dim_staging():
+    """One transform for both channel_dim and channel_dim_quarantined."""
+    return _transform_channel_dim_with_quarantine()
+
+
+@dlt.table(
+    name="user_dim_staging",
+    comment="Staging: user transform with quarantine. Read by user_dim and user_dim_quarantined.",
+    table_properties={"pipelines.autoOptimize.managed": "true"},
+)
+def user_dim_staging():
+    """One transform for both user_dim and user_dim_quarantined."""
+    return _transform_user_dim_with_quarantine()
+
+
+@dlt.table(
+    name="message_fact_staging",
+    comment="Staging: message transform with quarantine. Read by message_fact and message_fact_quarantined.",
+    table_properties={"pipelines.autoOptimize.managed": "true"},
+)
+def message_fact_staging():
+    """One transform for both message_fact and message_fact_quarantined."""
+    return _transform_message_fact_with_quarantine()
+
+
+@dlt.table(
+    name="voice_chat_fact_staging",
+    comment="Staging: voice transform with quarantine. Read by voice_chat_fact and voice_chat_fact_quarantined.",
+    table_properties={"pipelines.autoOptimize.managed": "true"},
+)
+def voice_chat_fact_staging():
+    """One transform for both voice_chat_fact and voice_chat_fact_quarantined."""
+    return _transform_voice_chat_fact_with_quarantine()
+
+
+# -----------------------------------------------------------------------------
 # Dimensions (from channels + messages + voice)
 # -----------------------------------------------------------------------------
 
@@ -238,8 +298,8 @@ def _transform_voice_chat_fact_with_quarantine():
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 def guild_dim():
-    """One row per unique guild. Source: discord_channels_raw (guild_id, guild_name)."""
-    df = _transform_guild_dim_with_quarantine()
+    """One row per unique guild. Source: guild_dim_staging."""
+    df = dlt.read("guild_dim_staging")
     return qutils.filter_valid_records(df).drop("quarantine_reason", "quarantine_timestamp")
 
 
@@ -250,8 +310,7 @@ def guild_dim():
 )
 def guild_dim_quarantined():
     """Invalid guild records with quarantine reasons."""
-    df = _transform_guild_dim_with_quarantine()
-    return qutils.filter_invalid_records(df)
+    return qutils.filter_invalid_records(dlt.read("guild_dim_staging"))
 
 
 @dlt.table(
@@ -262,9 +321,9 @@ def guild_dim_quarantined():
 def category_dim():
     """
     One row per unique category. Categories are channels with channel_type = 4.
-    Source: discord_channels_raw WHERE channel_type = 4.
+    Source: category_dim_staging.
     """
-    df = _transform_category_dim_with_quarantine()
+    df = dlt.read("category_dim_staging")
     return qutils.filter_valid_records(df).drop("quarantine_reason", "quarantine_timestamp")
 
 
@@ -275,21 +334,21 @@ def category_dim():
 )
 def category_dim_quarantined():
     """Invalid category records with quarantine reasons."""
-    df = _transform_category_dim_with_quarantine()
-    return qutils.filter_invalid_records(df)
+    return qutils.filter_invalid_records(dlt.read("category_dim_staging"))
 
 
 @dlt.table(
     name="channel_dim",
     comment="Silver dimension: one row per unique channel per snapshot_date (excludes categories). Valid records only.",
+    partition_cols=["snapshot_date"],
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 def channel_dim():
     """
     One row per channel per snapshot_date. Excludes category channels (type 4).
-    Source: discord_channels_raw WHERE channel_type != 4.
+    Source: channel_dim_staging.
     """
-    df = _transform_channel_dim_with_quarantine()
+    df = dlt.read("channel_dim_staging")
     return qutils.filter_valid_records(df).drop("quarantine_reason", "quarantine_timestamp")
 
 
@@ -300,8 +359,7 @@ def channel_dim():
 )
 def channel_dim_quarantined():
     """Invalid channel records with quarantine reasons."""
-    df = _transform_channel_dim_with_quarantine()
-    return qutils.filter_invalid_records(df)
+    return qutils.filter_invalid_records(dlt.read("channel_dim_staging"))
 
 
 @dlt.table(
@@ -310,8 +368,8 @@ def channel_dim_quarantined():
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 def user_dim():
-    """One row per unique user. Source: discord_messages_raw + discord_voice_activity_raw."""
-    df = _transform_user_dim_with_quarantine()
+    """One row per unique user. Source: user_dim_staging."""
+    df = dlt.read("user_dim_staging")
     return qutils.filter_valid_records(df).drop("quarantine_reason", "quarantine_timestamp")
 
 
@@ -322,8 +380,7 @@ def user_dim():
 )
 def user_dim_quarantined():
     """Invalid user records with quarantine reasons."""
-    df = _transform_user_dim_with_quarantine()
-    return qutils.filter_invalid_records(df)
+    return qutils.filter_invalid_records(dlt.read("user_dim_staging"))
 
 
 # -----------------------------------------------------------------------------
@@ -337,7 +394,7 @@ def user_dim_quarantined():
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 def channel_latest():
-    """One row per channel_id with latest snapshot_date; used to get category_id for messages."""
+    """One row per channel_id with latest snapshot_date."""
     return (
         dlt.read("channel_dim")
         .withColumn(
@@ -354,12 +411,17 @@ def channel_latest():
 @dlt.table(
     name="message_fact",
     comment="Silver fact: one row per unique message. Valid records only.",
-    table_properties={"pipelines.autoOptimize.managed": "true"},
+    partition_cols=["message_date"],
+    table_properties={
+        "pipelines.autoOptimize.managed": "true",
+        "delta.autoOptimize.optimizeWrite": "true",
+        "delta.autoOptimize.autoCompact": "true",
+    },
 )
 @dlt.expect("message_date_matches_timestamp", "DATE(timestamp) = message_date")
 def message_fact():
-    """One row per message. Source: discord_messages_raw. category_id from channel_latest."""
-    df = _transform_message_fact_with_quarantine()
+    """One row per message. Source: message_fact_staging."""
+    df = dlt.read("message_fact_staging")
     return qutils.filter_valid_records(df).drop("quarantine_reason", "quarantine_timestamp")
 
 
@@ -370,20 +432,24 @@ def message_fact():
 )
 def message_fact_quarantined():
     """Invalid message records with quarantine reasons."""
-    df = _transform_message_fact_with_quarantine()
-    return qutils.filter_invalid_records(df)
+    return qutils.filter_invalid_records(dlt.read("message_fact_staging"))
 
 
 @dlt.table(
     name="voice_chat_fact",
     comment="Silver fact: one row per unique voice session. Valid records only.",
-    table_properties={"pipelines.autoOptimize.managed": "true"},
+    partition_cols=["session_date"],
+    table_properties={
+        "pipelines.autoOptimize.managed": "true",
+        "delta.autoOptimize.optimizeWrite": "true",
+        "delta.autoOptimize.autoCompact": "true",
+    },
 )
 @dlt.expect("session_date_matches_joined_at", "DATE(joined_at) = session_date")
 @dlt.expect("valid_session_duration", "left_at IS NULL OR left_at >= joined_at")
 def voice_chat_fact():
-    """One row per voice session. Source: discord_voice_activity_raw. session_id string -> BIGINT via hash."""
-    df = _transform_voice_chat_fact_with_quarantine()
+    """One row per voice session. Source: voice_chat_fact_staging."""
+    df = dlt.read("voice_chat_fact_staging")
     return qutils.filter_valid_records(df).drop("quarantine_reason", "quarantine_timestamp")
 
 
@@ -394,5 +460,4 @@ def voice_chat_fact():
 )
 def voice_chat_fact_quarantined():
     """Invalid voice session records with quarantine reasons."""
-    df = _transform_voice_chat_fact_with_quarantine()
-    return qutils.filter_invalid_records(df)
+    return qutils.filter_invalid_records(dlt.read("voice_chat_fact_staging"))
