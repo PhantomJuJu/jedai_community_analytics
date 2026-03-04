@@ -72,7 +72,7 @@ CREATE TABLE IF NOT EXISTS kazuki_jedai.silver.channel_dim (
   snapshot_date DATE   NOT NULL,
   channel_type  INT    NOT NULL,
   channel_name STRING NOT NULL,
-  category_id   BIGINT NULL
+  category_id   BIGINT
 )
 USING DELTA
 PARTITIONED BY (snapshot_date)
@@ -100,10 +100,10 @@ CREATE TABLE IF NOT EXISTS kazuki_jedai.silver.message_fact (
   channel_id       BIGINT    NOT NULL,
   guild_id         BIGINT    NOT NULL,
   user_id          BIGINT    NOT NULL,
-  category_id      BIGINT    NULL,
-  content          STRING    NULL,
+  category_id      BIGINT,
+  content          STRING,
   timestamp        TIMESTAMP NOT NULL,
-  edited_timestamp TIMESTAMP NULL,
+  edited_timestamp TIMESTAMP,
   attachment_count INT       NOT NULL,
   reaction_count   INT       NOT NULL,
   is_pinned        BOOLEAN   NOT NULL,
@@ -142,7 +142,7 @@ CREATE TABLE IF NOT EXISTS kazuki_jedai.silver.voice_chat_fact (
   guild_id     BIGINT    NOT NULL,
   user_id      BIGINT    NOT NULL,
   joined_at    TIMESTAMP NOT NULL,
-  left_at      TIMESTAMP NULL,
+  left_at      TIMESTAMP,
   session_date DATE      NOT NULL
 )
 USING DELTA
