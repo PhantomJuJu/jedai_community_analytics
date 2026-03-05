@@ -27,6 +27,8 @@
 - **ボイスセッションの跨ぎ（日次集計時）:** **gold_activity_daily** でも、日をまたいだセッションは **「その日に属する秒数」だけを各 activity_date に配分**する。例: 金曜 23:00 参加・土曜 02:00 退出なら、金曜に 1 時間ぶん、土曜に 2 時間ぶんを配分する。セッション全体を `joined_at` の日（または `session_date`）にだけ乗せない。
 - **voice_duration_seconds の型:** 按分ロジックで秒の端数（小数）が発生するため、DDL（`01_create_gold_tables.sql`）では **DOUBLE** に統一する。集計ジョブも DOUBLE で投入すること。
 - **パーティション:** `gold_activity_daily` は **activity_date** でパーティション分割（日付範囲クエリの I/O 削減）。それ以外の 3 本（`gold_activity_by_weekday_hour`, `gold_user_activity`, `gold_channel_activity`）は日付カラムがないためパーティション未指定。将来「集計時点日」等のカラムを追加する場合は PARTITIONED BY の検討を推奨する。
+- **DLT パイプライン:** `01_gold_aggregation_dlt.py` は Delta Live Tables で実行する。ソースは **カタログ kazuki_jedai の Silver テーブル**（`kazuki_jedai.silver.message_fact`, `kazuki_jedai.silver.voice_chat_fact`）を 3 レベル名で参照する。ターゲットは `kazuki_jedai.gold`。Full refresh 運用を推奨。
+- **タイムゾーン:** 曜日・時間帯・日付の導出は Spark セッション（クラスタ）のタイムゾーンに依存する。プロジェクト方針（例: UTC）に合わせて設定すること。
 
 ---
 

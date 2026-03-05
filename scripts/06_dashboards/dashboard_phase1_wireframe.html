@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>JEDAI Phase 1 ダッシュボード ワイヤーフレーム</title>
+  <style>
+    * { box-sizing: border-box; }
+    body {
+      font-family: "Hiragino Sans", "Hiragino Kaku Gothic ProN", Meiryo, sans-serif;
+      margin: 0;
+      padding: 16px;
+      background: #f5f5f5;
+      color: #333;
+    }
+    h1 {
+      font-size: 1.25rem;
+      margin: 0 0 12px 0;
+      font-weight: 600;
+    }
+    .wireframe {
+      max-width: 1200px;
+      margin: 0 auto;
+      display: grid;
+      gap: 12px;
+      grid-template-columns: 1fr 1fr;
+      grid-template-rows: auto auto auto 1fr 1fr;
+      grid-template-areas:
+        "header header"
+        "kpi1 kpi2"
+        "filter filter"
+        "timeseries-msg timeseries-voice"
+        "heatmap bar-weekday"
+        "user-msg channel-msg"
+        "user-voice footer";
+    }
+    .block {
+      border: 2px solid #666;
+      background: #fff;
+      padding: 12px;
+      min-height: 60px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      text-align: center;
+      font-size: 0.85rem;
+    }
+    .block.kpi { min-height: 70px; font-weight: 600; }
+    .block.filter { min-height: 50px; grid-column: 1 / -1; }
+    .block.timeseries { min-height: 180px; }
+    .block.heatmap { min-height: 220px; }
+    .block.bar { min-height: 220px; }
+    .block.table { min-height: 160px; }
+    .header {
+      grid-area: header;
+      font-size: 1rem;
+      font-weight: 700;
+      background: #e8e8e8;
+    }
+    .kpi1 { grid-area: kpi1; }
+    .kpi2 { grid-area: kpi2; }
+    .filter { grid-area: filter; }
+    .timeseries-msg { grid-area: timeseries-msg; }
+    .timeseries-voice { grid-area: timeseries-voice; }
+    .heatmap { grid-area: heatmap; }
+    .bar-weekday { grid-area: bar-weekday; }
+    .user-msg { grid-area: user-msg; }
+    .channel-msg { grid-area: channel-msg; }
+    .user-voice { grid-area: user-voice; }
+    .footer {
+      grid-area: footer;
+      min-height: 160px;
+      align-items: center;
+      justify-content: center;
+    }
+  </style>
+</head>
+<body>
+  <h1>JEDAI Phase 1 ダッシュボード ワイヤーフレーム（Lakehouse）</h1>
+  <p style="margin:0 0 16px 0; font-size:0.8rem; color:#666;">コミュニティ全体の活動状況を俯瞰する構成。実データなし・枠とラベルのみ。</p>
+
+  <div class="wireframe">
+    <div class="block header">JEDAI コミュニティ活動ダッシュボード（Phase 1）</div>
+
+    <div class="block kpi kpi1">今月の合計メッセージ数</div>
+    <div class="block kpi kpi2">今月の合計ボイスチャット使用時間</div>
+
+    <div class="block filter">フィルタ：参照カテゴリ（運営チャンネル Exclude 等）・期間</div>
+
+    <div class="block timeseries timeseries-msg">時系列：メッセージ回数トレンド（一日・一週間・一ヶ月切り替え想定）</div>
+    <div class="block timeseries timeseries-voice">時系列：ボイスチャット使用時間（一日・一週間・一ヶ月切り替え想定）</div>
+
+    <div class="block heatmap">曜日×時間帯 ヒートマップ（アクティブ時間）</div>
+    <div class="block bar bar-weekday">曜日別 Bar chart（メッセージ数 or ボイス時間）</div>
+
+    <div class="block table user-msg">ユーザ別メッセージ回数（Table / Bar プレースホルダー）</div>
+    <div class="block table channel-msg">チャンネル別メッセージ回数（Table / Bar プレースホルダー）</div>
+
+    <div class="block table user-voice">ユーザ別ボイスチャンネル使用時間（Table / Bar プレースホルダー）</div>
+    <div class="block footer">（補足・凡例エリア または 余白）</div>
+  </div>
+</body>
+</html>
