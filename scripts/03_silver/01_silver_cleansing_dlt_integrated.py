@@ -7,9 +7,11 @@ Run as a Delta Live Tables (DLT) pipeline in Databricks.
 Bronze sources: discord_channels_raw, discord_messages_raw, discord_voice_activity_raw
 Silver targets: guild_dim, user_dim, category_dim, channel_dim, message_fact, voice_chat_fact
 
+SCD Strategy: Type 1 for all dimensions (never delete keys, update attributes in place)
+
 Author: Cheng Wang
 Contact: cheng.wang@myteam.com
-Date / Last Modified: 2026-03-04
+Date / Last Modified: 2026-03-05
 """
 
 import dlt
@@ -18,6 +20,7 @@ from pyspark.sql.window import Window
 
 CATALOG = "kazuki_jedai"
 BRONZE_SCHEMA = f"{CATALOG}.bronze"
+SILVER_SCHEMA = f"{CATALOG}.silver"
 
 
 def _safe_bigint(col_name: str):
@@ -35,13 +38,60 @@ def _safe_date(col_name: str):
     return F.to_date(F.col(col_name)).alias(col_name)
 
 
+def _table_exists(table_name: str) -> bool:
+    """Check if a table exists in the catalog."""
+    try:
+        spark.table(table_name)
+        return True
+    except:
+        return False
+
+
+def _apply_scd_type1(new_df, existing_table_name: str, key_columns: list, value_columns: list):
+    """
+    Apply SCD Type 1 logic: never delete keys, update attributes in place.
+    
+    Args:
+        new_df: DataFrame with new/updated records from bronze
+        existing_table_name: Full table name (catalog.schema.table)
+        key_columns: List of primary key column names
+        value_columns: List of attribute column names to update
+    
+    Returns:
+        DataFrame with SCD Type 1 applied (all historical keys + latest attributes)
+    """
+    if not _table_exists(existing_table_name):
+        # First run: return new records as-is
+        return new_df
+    
+    # Read existing dimension
+    existing_df = spark.table(existing_table_name)
+    
+    # Union existing and new, deduplicate by key (keep latest values)
+    # For each key, take the row from new_df if exists, otherwise from existing_df
+    return (
+        new_df.unionByName(existing_df)
+        .withColumn(
+            "_rn",
+            F.row_number().over(
+                Window.partitionBy(*key_columns).orderBy(F.lit(0))
+            )
+        )
+        .filter(F.col("_rn") == 1)
+        .drop("_rn")
+    )
+
+
 # -----------------------------------------------------------------------------
-# Transform functions: Bronze → Silver (no quarantine)
+# Transform functions: Bronze → Silver (SCD Type 1)
 # -----------------------------------------------------------------------------
 
 
 def _transform_guild_dim():
-    """Transform guild_dim. One row per guild_id (max guild_name)."""
+    """
+    Transform guild_dim with SCD Type 1.
+    New records from bronze (current snapshot).
+    """
     return (
         spark.table(f"{BRONZE_SCHEMA}.discord_channels_raw")
         .select(_safe_bigint("guild_id"), F.col("guild_name").cast("string").alias("guild_name"))
@@ -52,7 +102,10 @@ def _transform_guild_dim():
 
 
 def _transform_category_dim():
-    """Transform category_dim. Categories are channels with channel_type = 4."""
+    """
+    Transform category_dim with SCD Type 1.
+    Categories are channels with channel_type = 4.
+    """
     return (
         spark.table(f"{BRONZE_SCHEMA}.discord_channels_raw")
         .filter(F.col("channel_type") == 4)  # Filter first for predicate pushdown
@@ -65,36 +118,38 @@ def _transform_category_dim():
 
 
 def _transform_channel_dim():
-    """Transform channel_dim. One row per channel_id (latest snapshot_date). Excludes category channels."""
-    df = (
+    """
+    Transform channel_dim with SCD Type 1.
+    One row per channel_id (deduplicated). Excludes category channels.
+    """
+    return (
         spark.table(f"{BRONZE_SCHEMA}.discord_channels_raw")
         .filter(F.col("channel_type") != 4)  # Exclude category channels
+        .filter(F.col("channel_id").isNotNull())
         .select(
             _safe_bigint("channel_id"),
             _safe_bigint("guild_id"),
-            F.coalesce(_safe_date("snapshot_date"), F.current_date()).alias("snapshot_date"),
             F.col("channel_type").cast("int").alias("channel_type"),
             F.col("channel_name").cast("string").alias("channel_name"),
             F.when(F.col("category_id").isNotNull(), _safe_bigint("category_id"))
             .otherwise(F.lit(None).cast("long"))
             .alias("category_id"),
         )
-    )
-    # Get latest snapshot per channel_id using window function
-    return (
-        df.withColumn(
-            "_rn",
-            F.row_number().over(
-                Window.partitionBy("channel_id").orderBy(F.desc("snapshot_date"))
-            ),
+        .groupBy("channel_id")
+        .agg(
+            F.max("guild_id").alias("guild_id"),
+            F.max("channel_type").alias("channel_type"),
+            F.max("channel_name").alias("channel_name"),
+            F.max("category_id").alias("category_id"),
         )
-        .filter(F.col("_rn") == 1)
-        .drop("_rn")  # Keep snapshot_date in output
     )
 
 
 def _transform_user_dim():
-    """Transform user_dim. One row per user_id (max user_name)."""
+    """
+    Transform user_dim with SCD Type 1.
+    One row per user_id (max user_name from messages and voice).
+    """
     messages = spark.table(f"{BRONZE_SCHEMA}.discord_messages_raw").select(
         _safe_bigint("user_id"),
         F.col("user_name").cast("string").alias("user_name"),
@@ -168,55 +223,87 @@ def _transform_voice_chat_fact():
 
 
 # -----------------------------------------------------------------------------
-# Dimensions (from channels + messages + voice)
+# Dimensions (SCD Type 1: never delete keys, update attributes in place)
 # -----------------------------------------------------------------------------
 
 
 @dlt.table(
     name="guild_dim",
-    comment="Silver dimension: one row per unique guild (Discord server).",
+    comment="Silver dimension: one row per unique guild (SCD Type 1).",
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 def guild_dim():
-    """One row per unique guild. Built from bronze discord_channels_raw."""
-    return _transform_guild_dim()
+    """
+    One row per unique guild. SCD Type 1: never deletes guild_id, updates guild_name.
+    Built from bronze discord_channels_raw.
+    """
+    new_guilds = _transform_guild_dim()
+    return _apply_scd_type1(
+        new_df=new_guilds,
+        existing_table_name=f"{SILVER_SCHEMA}.guild_dim",
+        key_columns=["guild_id"],
+        value_columns=["guild_name"]
+    )
 
 
 @dlt.table(
     name="category_dim",
-    comment="Silver dimension: one row per unique category (channel_type = 4).",
+    comment="Silver dimension: one row per unique category (SCD Type 1).",
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 def category_dim():
     """
-    One row per unique category. Categories are channels with channel_type = 4.
+    One row per unique category. SCD Type 1: never deletes category_id, updates category_name.
+    Categories are channels with channel_type = 4.
     Built from bronze discord_channels_raw.
     """
-    return _transform_category_dim()
+    new_categories = _transform_category_dim()
+    return _apply_scd_type1(
+        new_df=new_categories,
+        existing_table_name=f"{SILVER_SCHEMA}.category_dim",
+        key_columns=["category_id"],
+        value_columns=["category_name"]
+    )
 
 
 @dlt.table(
     name="channel_dim",
-    comment="Silver dimension: one row per unique channel (latest snapshot). Excludes categories.",
-    partition_cols=["snapshot_date"],
+    comment="Silver dimension: one row per unique channel (SCD Type 1). Excludes categories.",
+    partition_cols=[],  # ← Explicitly specify no partitions
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 def channel_dim():
     """
-    One row per channel_id (latest snapshot_date). Excludes category channels (type 4).
+    One row per channel_id (latest snapshot). SCD Type 1: never deletes channel_id, updates attributes.
+    Excludes category channels (type 4).
     Built from bronze discord_channels_raw.
     """
-    return _transform_channel_dim()
+    new_channels = _transform_channel_dim()
+    return _apply_scd_type1(
+        new_df=new_channels,
+        existing_table_name=f"{SILVER_SCHEMA}.channel_dim",
+        key_columns=["channel_id"],
+        value_columns=["guild_id", "channel_type", "channel_name", "category_id"]
+    )
 
 
 @dlt.table(
     name="user_dim",
-    comment="Silver dimension: one row per unique user.",
+    comment="Silver dimension: one row per unique user (SCD Type 1).",
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 def user_dim():
-    """One row per unique user. Built from bronze discord_messages_raw and discord_voice_activity_raw."""
-    return _transform_user_dim()
+    """
+    One row per unique user. SCD Type 1: never deletes user_id, updates user_name.
+    Built from bronze discord_messages_raw and discord_voice_activity_raw.
+    """
+    new_users = _transform_user_dim()
+    return _apply_scd_type1(
+        new_df=new_users,
+        existing_table_name=f"{SILVER_SCHEMA}.user_dim",
+        key_columns=["user_id"],
+        value_columns=["user_name"]
+    )
 
 
 # -----------------------------------------------------------------------------
