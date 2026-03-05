@@ -2,7 +2,7 @@
 
 **Author:** Kazuki Date  
 **Contact:** kazuki.date@myteam.com  
-**Date / Last Modified:** 2026-02-27  
+**Date / Last Modified:** 2026-03-05  
 
 ---
 
@@ -25,6 +25,8 @@
 - **日付・曜日・時間:** タイムゾーンはプロジェクト方針に従う。`timestamp` / `joined_at` 等から `activity_date`・`weekday`・`hour_slot` を導出する際は、同一方針で統一する。
 - **ボイスセッションの跨ぎ（曜日×時間帯集計時）:** ボイスは数時間・日をまたぐことが多い。**(weekday, hour_slot)** で集計する場合、セッション全体を `joined_at` の 1 時間に乗せると他時間帯が過少になる。そのため **「その 1 時間のうち何秒（何割）アクティブだったか」を算出し、重なった各 (weekday, hour_slot) に按分してから SUM する**。例: 21:30 参加・22:45 退出なら、21 時台に 30 分ぶん（0.5 時間相当）、22 時台に 45 分ぶん（0.75 時間相当）を配分する。日跨ぎ（例: 23:00〜翌 01:30）も同様に、各時間帯に属する秒数だけを足す。
 - **ボイスセッションの跨ぎ（日次集計時）:** **gold_activity_daily** でも、日をまたいだセッションは **「その日に属する秒数」だけを各 activity_date に配分**する。例: 金曜 23:00 参加・土曜 02:00 退出なら、金曜に 1 時間ぶん、土曜に 2 時間ぶんを配分する。セッション全体を `joined_at` の日（または `session_date`）にだけ乗せない。
+- **voice_duration_seconds の型:** 按分ロジックで秒の端数（小数）が発生するため、DDL（`01_create_gold_tables.sql`）では **DOUBLE** に統一する。集計ジョブも DOUBLE で投入すること。
+- **パーティション:** `gold_activity_daily` は **activity_date** でパーティション分割（日付範囲クエリの I/O 削減）。それ以外の 3 本（`gold_activity_by_weekday_hour`, `gold_user_activity`, `gold_channel_activity`）は日付カラムがないためパーティション未指定。将来「集計時点日」等のカラムを追加する場合は PARTITIONED BY の検討を推奨する。
 
 ---
 
@@ -47,7 +49,7 @@
 | weekday | INT または STRING | 曜日（0=月〜6=日、または 'Monday' 等） |
 | hour_slot | INT | 時間帯（0〜23 の整数） |
 | message_count | BIGINT | メッセージ数 |
-| voice_duration_seconds | DOUBLE または BIGINT | ボイス使用時間の合計（秒） |
+| voice_duration_seconds | DOUBLE | ボイス使用時間の合計（秒）。按分時は端数を含む。 |
 
 ### Casting・導出
 
@@ -84,9 +86,9 @@
 
 | カラム名 | 型 | 意味 |
 |----------|-----|------|
-| activity_date | DATE | 活動日 |
+| activity_date | DATE | 活動日（本テーブルはこのカラムでパーティション分割） |
 | message_count | BIGINT | メッセージ数 |
-| voice_duration_seconds | DOUBLE または BIGINT | ボイス使用時間の合計（秒） |
+| voice_duration_seconds | DOUBLE | ボイス使用時間の合計（秒）。按分時は端数を含む。 |
 
 ### Casting・導出
 
@@ -124,7 +126,7 @@
 |----------|-----|------|
 | user_id | STRING | ユーザ ID（Silver の user_id と同一） |
 | message_count | BIGINT | メッセージ数 |
-| voice_duration_seconds | DOUBLE または BIGINT | ボイス使用時間の合計（秒） |
+| voice_duration_seconds | DOUBLE | ボイス使用時間の合計（秒） |
 
 ### Casting・導出
 
@@ -156,9 +158,9 @@
 | カラム名 | 型 | 意味 |
 |----------|-----|------|
 | channel_id | STRING | チャンネル ID |
-| category_id | STRING | カテゴリ ID（Exclude 用 Filter に使用） |
+| category_id | STRING | カテゴリ ID（Exclude 用 Filter に使用、NULL 可） |
 | message_count | BIGINT | メッセージ数 |
-| voice_duration_seconds | DOUBLE または BIGINT | ボイス使用時間の合計（秒） |
+| voice_duration_seconds | DOUBLE | ボイス使用時間の合計（秒） |
 
 ### Casting・導出
 
@@ -177,6 +179,7 @@
 
 ## 参照
 
+- **Gold DDL:** テーブル定義は **scripts/04_gold/01_create_gold_tables.sql**（Delta、PARTITIONED BY は gold_activity_daily のみ）。
 - Silver テーブル定義・DLT パイプライン: **scripts/03_silver/** を参照（本 README では 03_silver のファイルは変更しない）。
 - Dimension: `guild_dim`, `category_dim`, `channel_dim`, `user_dim`
 - Fact: `message_fact`（timestamp, message_date, channel_id, user_id, category_id 等）, `voice_chat_fact`（joined_at, left_at, session_date, channel_id, user_id, category_id 等）
