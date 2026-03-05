@@ -25,7 +25,7 @@ SECONDS_PER_HOUR = 3600
 
 
 # ---------------------------------------------------------------------------
-# 1. gold_activity_by_weekday_hour（曜日×時間帯：メッセージ COUNT + ボイス時間帯按分 SUM）
+# 1. activity_by_weekday_hour（曜日×時間帯：メッセージ COUNT + ボイス時間帯按分 SUM）
 # ---------------------------------------------------------------------------
 
 
@@ -115,7 +115,7 @@ def _build_gold_activity_by_weekday_hour():
 
 
 # ---------------------------------------------------------------------------
-# 2. gold_activity_daily（日次：メッセージ COUNT + ボイス日按分 SUM）
+# 2. activity_daily（日次：メッセージ COUNT + ボイス日按分 SUM）
 # ---------------------------------------------------------------------------
 
 
@@ -195,7 +195,7 @@ def _build_gold_activity_daily():
 
 
 # ---------------------------------------------------------------------------
-# 3. gold_user_activity（ユーザ別：メッセージ COUNT + ボイス SUM）
+# 3. user_activity（ユーザ別：メッセージ COUNT + ボイス SUM）
 # ---------------------------------------------------------------------------
 
 
@@ -243,7 +243,7 @@ def _build_gold_user_activity():
 
 
 # ---------------------------------------------------------------------------
-# 4. gold_channel_activity（チャンネル・カテゴリ別：メッセージ COUNT + ボイス SUM）
+# 4. channel_activity（チャンネル・カテゴリ別：メッセージ COUNT + ボイス SUM）
 # ---------------------------------------------------------------------------
 
 
@@ -297,8 +297,8 @@ def _build_gold_channel_activity():
 
 
 @dlt.table(
-    name="gold_activity_by_weekday_hour",
-    comment="Gold: 曜日×時間帯ごとのメッセージ数・ボイス使用時間（ヒートマップ・曜日別 Bar 用）。",
+    name="activity_by_weekday_hour",
+    comment="曜日×時間帯ごとのメッセージ数・ボイス使用時間（ヒートマップ・曜日別 Bar 用）。",
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 @dlt.expect("weekday_not_null", "weekday IS NOT NULL")
@@ -310,8 +310,8 @@ def gold_activity_by_weekday_hour():
 
 
 @dlt.table(
-    name="gold_activity_daily",
-    comment="Gold: 日付ごとのメッセージ数・ボイス使用時間（時系列トレンド・今月 KPI 用）。",
+    name="activity_daily",
+    comment="日付ごとのメッセージ数・ボイス使用時間（時系列トレンド・今月 KPI 用）。",
     partition_cols=["activity_date"],
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
@@ -323,8 +323,8 @@ def gold_activity_daily():
 
 
 @dlt.table(
-    name="gold_user_activity",
-    comment="Gold: ユーザごとのメッセージ数・ボイス使用時間（ユーザ別活動ランキング用）。",
+    name="user_activity",
+    comment="ユーザごとのメッセージ数・ボイス使用時間（ユーザ別活動ランキング用）。",
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 @dlt.expect("user_id_not_null", "user_id IS NOT NULL")
@@ -335,8 +335,8 @@ def gold_user_activity():
 
 
 @dlt.table(
-    name="gold_channel_activity",
-    comment="Gold: チャンネル・カテゴリごとのメッセージ数・ボイス使用時間（チャンネル別比較・カテゴリ Exclude 用）。",
+    name="channel_activity",
+    comment="チャンネル・カテゴリごとのメッセージ数・ボイス使用時間（チャンネル別比較・カテゴリ Exclude 用）。",
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 @dlt.expect("channel_id_not_null", "channel_id IS NOT NULL")
