@@ -146,6 +146,8 @@ Phase 1 の目的は、活動傾向を「見える化」し、コミュニティ
 - `DATABRICKS_SCHEMA`
 - Discord API の認証情報は Databricks Secrets で管理（ソースコードにハードコードしない）
 
+Databricks に PAT で接続し、Unity Catalog のテーブル一覧をリポジトリ内に取得する手順は [Databricks 接続とテーブル一覧の取得](docs/Databricks接続とテーブル一覧の取得.md) を参照。取得したスナップショットをコミットすると、Phase 2 バックログ等を実際のテーブル構成に合わせてより正確に作成できる。
+
 ---
 
 ## プロジェクト構成
