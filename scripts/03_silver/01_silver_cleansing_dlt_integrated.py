@@ -65,10 +65,10 @@ def _transform_category_dim():
 
 
 def _transform_channel_dim():
-    """Transform channel_dim. Excludes category channels (channel_type = 4)."""
-    return (
+    """Transform channel_dim. One row per channel_id (latest snapshot_date). Excludes category channels."""
+    df = (
         spark.table(f"{BRONZE_SCHEMA}.discord_channels_raw")
-        .filter(F.col("channel_type") != 4)  # Filter first for predicate pushdown
+        .filter(F.col("channel_type") != 4)  # Exclude category channels
         .select(
             _safe_bigint("channel_id"),
             _safe_bigint("guild_id"),
@@ -79,6 +79,17 @@ def _transform_channel_dim():
             .otherwise(F.lit(None).cast("long"))
             .alias("category_id"),
         )
+    )
+    # Get latest snapshot per channel_id using window function
+    return (
+        df.withColumn(
+            "_rn",
+            F.row_number().over(
+                Window.partitionBy("channel_id").orderBy(F.desc("snapshot_date"))
+            ),
+        )
+        .filter(F.col("_rn") == 1)
+        .drop("_rn")  # Keep snapshot_date in output
     )
 
 
@@ -186,13 +197,13 @@ def category_dim():
 
 @dlt.table(
     name="channel_dim",
-    comment="Silver dimension: one row per unique channel per snapshot_date (excludes categories).",
+    comment="Silver dimension: one row per unique channel (latest snapshot). Excludes categories.",
     partition_cols=["snapshot_date"],
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 def channel_dim():
     """
-    One row per channel per snapshot_date. Excludes category channels (type 4).
+    One row per channel_id (latest snapshot_date). Excludes category channels (type 4).
     Built from bronze discord_channels_raw.
     """
     return _transform_channel_dim()
@@ -211,26 +222,6 @@ def user_dim():
 # -----------------------------------------------------------------------------
 # Facts (depend on dimensions)
 # -----------------------------------------------------------------------------
-
-
-@dlt.table(
-    name="channel_latest",
-    comment="Latest channel snapshot per channel_id for lookups.",
-    table_properties={"pipelines.autoOptimize.managed": "true"},
-)
-def channel_latest():
-    """One row per channel_id with latest snapshot_date."""
-    return (
-        dlt.read("channel_dim")
-        .withColumn(
-            "_rn",
-            F.row_number().over(
-                Window.partitionBy("channel_id").orderBy(F.desc("snapshot_date"))
-            ),
-        )
-        .filter(F.col("_rn") == 1)
-        .drop("_rn", "snapshot_date", "channel_type", "channel_name")
-    )
 
 
 @dlt.table(
