@@ -31,10 +31,10 @@ SECONDS_PER_HOUR = 3600
 
 def _transform_message_by_weekday_hour():
     """message_fact から weekday, hour_slot を導出し (weekday, hour_slot) で COUNT。"""
-    df = spark.table(f"{SILVER_SCHEMA}.message_fact").filter(F.col("timestamp").isNotNull())
-    # weekday: 0=月〜6=日（Spark date_format 'u' は 1=月〜7=日）
+    df = spark.read.table(f"{SILVER_SCHEMA}.message_fact").filter(F.col("timestamp").isNotNull())
+    # weekday: 0=月〜6=日（DAYOFWEEK: 1=日〜7=土 → (DAYOFWEEK + 5) % 7 で 0=月〜6=日に変換）
     return (
-        df.withColumn("weekday", F.expr("CAST(date_format(timestamp, 'u') AS INT) - 1"))
+        df.withColumn("weekday", F.expr("(DAYOFWEEK(timestamp) + 5) % 7"))
         .withColumn("hour_slot", F.hour("timestamp"))
         .groupBy("weekday", "hour_slot")
         .agg(F.count("*").alias("message_count"))
@@ -47,9 +47,9 @@ def _transform_voice_by_weekday_hour_prorated():
     その時間帯に含まれる秒数を計算して (weekday, hour_slot) で SUM。
     """
     voice = (
-        spark.table(f"{SILVER_SCHEMA}.voice_chat_fact")
+        spark.read.table(f"{SILVER_SCHEMA}.voice_chat_fact")
         .filter(F.col("left_at").isNotNull())
-        .filter(F.col("left_at").geq(F.col("joined_at")))
+        .filter(F.col("left_at") >= F.col("joined_at"))
     )
     # 時間単位で区切った開始・終了（unix 秒）
     voice = voice.withColumn(
@@ -85,11 +85,11 @@ def _transform_voice_by_weekday_hour_prorated():
         (
             F.unix_timestamp("segment_end") - F.unix_timestamp("segment_start")
         ).cast("double"),
-    ).filter(F.col("duration_seconds").gt(0))
+    ).filter(F.col("duration_seconds") > 0)
     # weekday: 0=月〜6=日, hour_slot: 0〜23
     voice = voice.withColumn(
         "weekday",
-        F.expr("CAST(date_format(hour_bucket, 'u') AS INT) - 1"),
+        F.expr("(DAYOFWEEK(hour_bucket) + 5) % 7"),
     ).withColumn("hour_slot", F.hour("hour_bucket"))
     return (
         voice.groupBy("weekday", "hour_slot")
@@ -122,7 +122,7 @@ def _build_gold_activity_by_weekday_hour():
 def _transform_message_daily():
     """message_fact を message_date で GROUP BY して COUNT。"""
     return (
-        spark.table(f"{SILVER_SCHEMA}.message_fact")
+        spark.read.table(f"{SILVER_SCHEMA}.message_fact")
         .filter(F.col("message_date").isNotNull())
         .groupBy(F.col("message_date").alias("activity_date"))
         .agg(F.count("*").alias("message_count"))
@@ -135,9 +135,9 @@ def _transform_voice_daily_prorated():
     activity_date で SUM。
     """
     voice = (
-        spark.table(f"{SILVER_SCHEMA}.voice_chat_fact")
+        spark.read.table(f"{SILVER_SCHEMA}.voice_chat_fact")
         .filter(F.col("left_at").isNotNull())
-        .filter(F.col("left_at").geq(F.col("joined_at")))
+        .filter(F.col("left_at") >= F.col("joined_at"))
     )
     voice = voice.withColumn(
         "_start_date",
@@ -171,7 +171,7 @@ def _transform_voice_daily_prorated():
         (
             F.unix_timestamp("segment_end") - F.unix_timestamp("segment_start")
         ).cast("double"),
-    ).filter(F.col("duration_seconds").gt(0))
+    ).filter(F.col("duration_seconds") > 0)
     return (
         voice.groupBy("activity_date")
         .agg(F.sum("duration_seconds").alias("voice_duration_seconds"))
@@ -202,7 +202,7 @@ def _build_gold_activity_daily():
 def _transform_message_by_user():
     """message_fact を user_id で GROUP BY して COUNT。"""
     return (
-        spark.table(f"{SILVER_SCHEMA}.message_fact")
+        spark.read.table(f"{SILVER_SCHEMA}.message_fact")
         .filter(F.col("user_id").isNotNull())
         .groupBy("user_id")
         .agg(F.count("*").alias("message_count"))
@@ -212,9 +212,9 @@ def _transform_message_by_user():
 def _transform_voice_by_user():
     """voice_chat_fact で left_at - joined_at を秒で計算し user_id で SUM。"""
     return (
-        spark.table(f"{SILVER_SCHEMA}.voice_chat_fact")
+        spark.read.table(f"{SILVER_SCHEMA}.voice_chat_fact")
         .filter(F.col("left_at").isNotNull())
-        .filter(F.col("left_at").geq(F.col("joined_at")))
+        .filter(F.col("left_at") >= F.col("joined_at"))
         .withColumn(
             "duration_seconds",
             (
@@ -250,7 +250,7 @@ def _build_gold_user_activity():
 def _transform_message_by_channel():
     """message_fact を channel_id, category_id で GROUP BY して COUNT。"""
     return (
-        spark.table(f"{SILVER_SCHEMA}.message_fact")
+        spark.read.table(f"{SILVER_SCHEMA}.message_fact")
         .filter(F.col("channel_id").isNotNull())
         .groupBy("channel_id", "category_id")
         .agg(F.count("*").alias("message_count"))
@@ -260,9 +260,9 @@ def _transform_message_by_channel():
 def _transform_voice_by_channel():
     """voice_chat_fact で duration を計算し channel_id, category_id で SUM。"""
     return (
-        spark.table(f"{SILVER_SCHEMA}.voice_chat_fact")
+        spark.read.table(f"{SILVER_SCHEMA}.voice_chat_fact")
         .filter(F.col("left_at").isNotNull())
-        .filter(F.col("left_at").geq(F.col("joined_at")))
+        .filter(F.col("left_at") >= F.col("joined_at"))
         .withColumn(
             "duration_seconds",
             (
@@ -301,10 +301,10 @@ def _build_gold_channel_activity():
     comment="Gold: 曜日×時間帯ごとのメッセージ数・ボイス使用時間（ヒートマップ・曜日別 Bar 用）。",
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
-@dlt.expect("weekday_not_null", "weekday IS NOT NULL", description="曜日は NULL でないこと")
-@dlt.expect("hour_slot_not_null", "hour_slot IS NOT NULL", description="時間帯は NULL でないこと")
-@dlt.expect("message_count_non_negative", "message_count >= 0", description="メッセージ数は 0 以上")
-@dlt.expect("voice_duration_non_negative", "voice_duration_seconds >= 0", description="ボイス使用時間（秒）は 0 以上")
+@dlt.expect("weekday_not_null", "weekday IS NOT NULL")
+@dlt.expect("hour_slot_not_null", "hour_slot IS NOT NULL")
+@dlt.expect("message_count_non_negative", "message_count >= 0")
+@dlt.expect("voice_duration_non_negative", "voice_duration_seconds >= 0")
 def gold_activity_by_weekday_hour():
     return _build_gold_activity_by_weekday_hour()
 
@@ -315,9 +315,9 @@ def gold_activity_by_weekday_hour():
     partition_cols=["activity_date"],
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
-@dlt.expect("activity_date_not_null", "activity_date IS NOT NULL", description="活動日は NULL でないこと")
-@dlt.expect("message_count_non_negative", "message_count >= 0", description="メッセージ数は 0 以上")
-@dlt.expect("voice_duration_non_negative", "voice_duration_seconds >= 0", description="ボイス使用時間（秒）は 0 以上")
+@dlt.expect("activity_date_not_null", "activity_date IS NOT NULL")
+@dlt.expect("message_count_non_negative", "message_count >= 0")
+@dlt.expect("voice_duration_non_negative", "voice_duration_seconds >= 0")
 def gold_activity_daily():
     return _build_gold_activity_daily()
 
@@ -327,9 +327,9 @@ def gold_activity_daily():
     comment="Gold: ユーザごとのメッセージ数・ボイス使用時間（ユーザ別活動ランキング用）。",
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
-@dlt.expect("user_id_not_null", "user_id IS NOT NULL", description="ユーザ ID は NULL でないこと")
-@dlt.expect("message_count_non_negative", "message_count >= 0", description="メッセージ数は 0 以上")
-@dlt.expect("voice_duration_non_negative", "voice_duration_seconds >= 0", description="ボイス使用時間（秒）は 0 以上")
+@dlt.expect("user_id_not_null", "user_id IS NOT NULL")
+@dlt.expect("message_count_non_negative", "message_count >= 0")
+@dlt.expect("voice_duration_non_negative", "voice_duration_seconds >= 0")
 def gold_user_activity():
     return _build_gold_user_activity()
 
@@ -339,8 +339,8 @@ def gold_user_activity():
     comment="Gold: チャンネル・カテゴリごとのメッセージ数・ボイス使用時間（チャンネル別比較・カテゴリ Exclude 用）。",
     table_properties={"pipelines.autoOptimize.managed": "true"},
 )
-@dlt.expect("channel_id_not_null", "channel_id IS NOT NULL", description="チャンネル ID は NULL でないこと")
-@dlt.expect("message_count_non_negative", "message_count >= 0", description="メッセージ数は 0 以上")
-@dlt.expect("voice_duration_non_negative", "voice_duration_seconds >= 0", description="ボイス使用時間（秒）は 0 以上")
+@dlt.expect("channel_id_not_null", "channel_id IS NOT NULL")
+@dlt.expect("message_count_non_negative", "message_count >= 0")
+@dlt.expect("voice_duration_non_negative", "voice_duration_seconds >= 0")
 def gold_channel_activity():
     return _build_gold_channel_activity()
