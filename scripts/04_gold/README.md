@@ -22,18 +22,29 @@
 ## 共通事項
 
 - **複数ギルド対応:** 全 Gold テーブルに **guild_id**（および表示用 **guild_name**）を持つ。集計キーに guild_id を含め、guild_dim と JOIN して guild_name を付与する。
+- **集計カラムの命名:** 集計値を表すカラムには **_aggregated** サフィックスを用いる（**message_count_aggregated**, **voice_duration_seconds_aggregated**）。
 - **ボイス使用時間:** Silver には秒数カラムがない。`voice_chat_fact` の **`left_at - joined_at`** を秒で計算し、集計時に **SUM** する。
 - **日付・曜日・時間:** タイムゾーンはプロジェクト方針に従う。`timestamp` / `joined_at` 等から `activity_date`・`weekday`・`hour_slot` を導出する際は、同一方針で統一する。
 - **ボイスセッションの跨ぎ（曜日×時間帯集計時）:** ボイスは数時間・日をまたぐことが多い。**(weekday, hour_slot)** で集計する場合、セッション全体を `joined_at` の 1 時間に乗せると他時間帯が過少になる。そのため **「その 1 時間のうち何秒（何割）アクティブだったか」を算出し、重なった各 (weekday, hour_slot) に按分してから SUM する**。例: 21:30 参加・22:45 退出なら、21 時台に 30 分ぶん（0.5 時間相当）、22 時台に 45 分ぶん（0.75 時間相当）を配分する。日跨ぎ（例: 23:00〜翌 01:30）も同様に、各時間帯に属する秒数だけを足す。
 - **ボイスセッションの跨ぎ（日次集計時）:** **activity_daily** でも、日をまたいだセッションは **「その日に属する秒数」だけを各 activity_date に配分**する。例: 金曜 23:00 参加・土曜 02:00 退出なら、金曜に 1 時間ぶん、土曜に 2 時間ぶんを配分する。セッション全体を `joined_at` の日（または `session_date`）にだけ乗せない。
-- **voice_duration_seconds の型:** 按分ロジックで秒の端数（小数）が発生するため、DDL（`01_create_gold_tables.sql`）では **DOUBLE** に統一する。集計ジョブも DOUBLE で投入すること。
+- **voice_duration_seconds_aggregated の型:** 按分ロジックで秒の端数（小数）が発生するため、DDL（`01_create_gold_tables.sql`）では **DOUBLE** に統一する。集計ジョブも DOUBLE で投入すること。
 - **パーティション:** **activity_daily** は **activity_date** でパーティション分割（日付範囲クエリの I/O 削減）。それ以外の 3 本（activity_by_weekday_hour, user_activity, channel_activity）は日付カラムがないためパーティション未指定。将来「集計時点日」等のカラムを追加する場合は PARTITIONED BY の検討を推奨する。
 - **DLT パイプライン:** `01_gold_aggregation_dlt.py` は Delta Live Tables で実行する。ソースは **カタログ kazuki_jedai の Silver テーブル**（`kazuki_jedai.silver.message_fact`, `kazuki_jedai.silver.voice_chat_fact`）を 3 レベル名で参照する。ターゲットは `kazuki_jedai.gold`。Full refresh 運用を推奨。
 - **タイムゾーン:** 曜日・時間帯・日付の導出は Spark セッション（クラスタ）のタイムゾーンに依存する。プロジェクト方針（例: UTC）に合わせて設定すること。
 
 ---
 
+## コーディング参照（Coding Reference）
+
+- **weekday（INT）:** 曜日。0=月曜, 1=火曜, 2=水曜, 3=木曜, 4=金曜, 5=土曜, 6=日曜。Spark の DAYOFWEEK を (DAYOFWEEK + 5) % 7 で変換した値。
+- **hour_slot（INT）:** 時間帯（0〜23）。0 = 0:00〜0:59、23 = 23:00〜23:59。タイムゾーンはプロジェクト方針（例: UTC）に合わせる。
+
+---
+
 ## 1. activity_by_weekday_hour
+
+**粒度:** 1 行 = 1 ギルド × 1 曜日 × 1 時間帯（集計期間中の合計）  
+**PK:** (guild_id, weekday, hour_slot)
 
 | 項目 | 内容 |
 |------|------|
@@ -52,10 +63,10 @@
 |----------|-----|------|
 | guild_id | BIGINT | ギルド ID。集計キー。 |
 | guild_name | STRING | ギルド表示名（guild_dim と JOIN で取得） |
-| weekday | INT または STRING | 曜日（0=月〜6=日、または 'Monday' 等） |
-| hour_slot | INT | 時間帯（0〜23 の整数） |
-| message_count | BIGINT | メッセージ数 |
-| voice_duration_seconds | DOUBLE | ボイス使用時間の合計（秒）。按分時は端数を含む。 |
+| weekday | INT | 曜日（0=月曜〜6=日曜。コーディング参照） |
+| hour_slot | INT | 時間帯（0〜23。コーディング参照） |
+| message_count_aggregated | BIGINT | メッセージ数（集計値） |
+| voice_duration_seconds_aggregated | DOUBLE | ボイス使用時間の合計（秒）。按分時は端数を含む。 |
 
 ### Casting・導出
 
@@ -71,13 +82,16 @@
 ### 集計ロジック
 
 - **GROUP BY:** `guild_id`, `weekday`, `hour_slot`
-- **message_count:** `message_fact` を `(guild_id, weekday, hour_slot)` で **COUNT(\*)** または COUNT(message_id)。
-- **voice_duration_seconds:** `voice_chat_fact` を上記の **時間帯按分** で展開したうえで、`(guild_id, weekday, hour_slot)` で **SUM(配分秒数)**。実装では、セッションごとに「重なった各 (date, hour) とその時間帯内の秒数」を行にした DataFrame を作り、date から weekday を導出してから GROUP BY する。
+- **message_count_aggregated:** `message_fact` を `(guild_id, weekday, hour_slot)` で **COUNT(\*)** または COUNT(message_id)。
+- **voice_duration_seconds_aggregated:** `voice_chat_fact` を上記の **時間帯按分** で展開したうえで、`(guild_id, weekday, hour_slot)` で **SUM(配分秒数)**。実装では、セッションごとに「重なった各 (date, hour) とその時間帯内の秒数」を行にした DataFrame を作り、date から weekday を導出してから GROUP BY する。
 - メッセージ集計とボイス集計を **(guild_id, weekday, hour_slot)** で JOIN し、**guild_dim** と JOIN して guild_name を付与する。
 
 ---
 
 ## 2. activity_daily
+
+**粒度:** 1 行 = 1 ギルド × 1 日  
+**PK:** (guild_id, activity_date)
 
 | 項目 | 内容 |
 |------|------|
@@ -97,8 +111,8 @@
 | guild_id | BIGINT | ギルド ID。集計キー。 |
 | guild_name | STRING | ギルド表示名（guild_dim と JOIN で取得） |
 | activity_date | DATE | 活動日（本テーブルはこのカラムでパーティション分割） |
-| message_count | BIGINT | メッセージ数 |
-| voice_duration_seconds | DOUBLE | ボイス使用時間の合計（秒）。按分時は端数を含む。 |
+| message_count_aggregated | BIGINT | メッセージ数（集計値） |
+| voice_duration_seconds_aggregated | DOUBLE | ボイス使用時間の合計（秒）。按分時は端数を含む。 |
 
 ### Casting・導出
 
@@ -112,13 +126,18 @@
 ### 集計ロジック
 
 - **GROUP BY:** `guild_id`, `activity_date`
-- **message_count:** `message_fact` を **(guild_id, message_date)** で **COUNT(\*)** または COUNT(message_id)。
-- **voice_duration_seconds:** `voice_chat_fact` を上記の **日按分** で展開したうえで、**(guild_id, activity_date)** で **SUM(配分秒数)**。実装では、セッションごとに「重なった各 (date) とその日に属する秒数」を行にした DataFrame を作り、(guild_id, activity_date) で GROUP BY する。
+- **message_count_aggregated:** `message_fact` を **(guild_id, message_date)** で **COUNT(\*)** または COUNT(message_id)。
+- **voice_duration_seconds_aggregated:** `voice_chat_fact` を上記の **日按分** で展開したうえで、**(guild_id, activity_date)** で **SUM(配分秒数)**。実装では、セッションごとに「重なった各 (date) とその日に属する秒数」を行にした DataFrame を作り、(guild_id, activity_date) で GROUP BY する。
 - 両者を **(guild_id, activity_date)** で JOIN し、**guild_dim** と JOIN して guild_name を付与する。
+
+**補足:** 日付ごとのトレンド用。曜日×時間帯のパターン集計（日付なし）は activity_by_weekday_hour を参照する。ボイスは **日按分** を行う（日をまたいだセッションはその日に属する秒数だけを各 activity_date に配分）。
 
 ---
 
 ## 3. user_activity
+
+**粒度:** 1 行 = 1 ギルド × 1 ユーザ（ギルド別ユーザ活動）  
+**PK:** (guild_id, user_id)
 
 | 項目 | 内容 |
 |------|------|
@@ -140,23 +159,26 @@
 | guild_name | STRING | ギルド表示名（guild_dim と JOIN で取得） |
 | user_id | STRING | ユーザ ID（Silver の user_id と同一） |
 | user_name | STRING | ユーザ表示名（user_dim と JOIN で取得） |
-| message_count | BIGINT | メッセージ数 |
-| voice_duration_seconds | DOUBLE | ボイス使用時間の合計（秒） |
+| message_count_aggregated | BIGINT | メッセージ数（集計値） |
+| voice_duration_seconds_aggregated | DOUBLE | ボイス使用時間の合計（秒） |
 
 ### Casting・導出
 
-- **voice_duration_seconds:** `voice_chat_fact` で `unix_timestamp(left_at) - unix_timestamp(joined_at)` を秒として計算し、(guild_id, user_id) ごとに SUM。
+- **voice_duration_seconds_aggregated:** `voice_chat_fact` で `unix_timestamp(left_at) - unix_timestamp(joined_at)` を秒として計算し、(guild_id, user_id) ごとに SUM。
 
 ### 集計ロジック
 
 - **GROUP BY:** `guild_id`, `user_id`
-- **message_count:** `message_fact` を **(guild_id, user_id)** で **COUNT(\*)** または COUNT(message_id)。
-- **voice_duration_seconds:** `voice_chat_fact` を **(guild_id, user_id)** で **SUM(duration_seconds)**。  
+- **message_count_aggregated:** `message_fact` を **(guild_id, user_id)** で **COUNT(\*)** または COUNT(message_id)。
+- **voice_duration_seconds_aggregated:** `voice_chat_fact` を **(guild_id, user_id)** で **SUM(duration_seconds)**。  
   両者を **(guild_id, user_id)** で JOIN し、**user_dim** と JOIN して user_name、**guild_dim** と JOIN して guild_name を取得する。
 
 ---
 
 ## 4. channel_activity
+
+**粒度:** 1 行 = 1 ギルド × 1 チャンネル × 1 カテゴリ（ギルド別チャンネル活動）  
+**PK:** (guild_id, channel_id, category_id)
 
 | 項目 | 内容 |
 |------|------|
@@ -181,18 +203,18 @@
 | category_id | STRING | カテゴリ ID（Exclude 用 Filter に使用、NULL 可） |
 | channel_name | STRING | チャンネル表示名（channel_dim と JOIN で取得） |
 | category_name | STRING | カテゴリ表示名（category_dim と JOIN で取得） |
-| message_count | BIGINT | メッセージ数 |
-| voice_duration_seconds | DOUBLE | ボイス使用時間の合計（秒） |
+| message_count_aggregated | BIGINT | メッセージ数（集計値） |
+| voice_duration_seconds_aggregated | DOUBLE | ボイス使用時間の合計（秒） |
 
 ### Casting・導出
 
-- **voice_duration_seconds:** `voice_chat_fact` で `left_at - joined_at` を秒で計算し、(guild_id, channel_id, category_id) ごとに SUM。
+- **voice_duration_seconds_aggregated:** `voice_chat_fact` で `left_at - joined_at` を秒で計算し、(guild_id, channel_id, category_id) ごとに SUM。
 
 ### 集計ロジック
 
 - **GROUP BY:** `guild_id`, `channel_id`, `category_id`
-- **message_count:** `message_fact` を **(guild_id, channel_id, category_id)** で **COUNT(\*)** または COUNT(message_id)。
-- **voice_duration_seconds:** `voice_chat_fact` を **(guild_id, channel_id, category_id)** で **SUM(duration_seconds)**。  
+- **message_count_aggregated:** `message_fact` を **(guild_id, channel_id, category_id)** で **COUNT(\*)** または COUNT(message_id)。
+- **voice_duration_seconds_aggregated:** `voice_chat_fact` を **(guild_id, channel_id, category_id)** で **SUM(duration_seconds)**。  
   両者を **(guild_id, channel_id, category_id)** で JOIN し、**channel_dim**, **category_dim**, **guild_dim** と JOIN して channel_name, category_name, guild_name を取得する。
 
 **カテゴリ Exclude:** ダッシュボード側で `category_id` または category_name に Filter をかけ、除外したいカテゴリを外して集計・表示する。Gold は guild_id × channel_id × category_id の粒度で保持する。

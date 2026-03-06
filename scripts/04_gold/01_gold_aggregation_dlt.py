@@ -5,6 +5,9 @@ Silver スキーマ（kazuki_jedai.silver）の message_fact / voice_chat_fact�
 按分ロジック（時間帯按分・日按分）を含む集計を行い、guild_dim / user_dim / channel_dim / category_dim と JOIN して
 guild_name 等の表示名を付与したうえで、Gold スキーマ（kazuki_jedai.gold）に 4 本のテーブルを出力する。Delta Live Tables パイプラインとして実行する。
 
+集計カラムの命名: Data Dictionary に従い、集計値には _aggregated サフィックスを用いる
+（message_count_aggregated, voice_duration_seconds_aggregated）。全テーブルで guild_id を集計キーに含め、Dimension と JOIN して表示名を付与する。
+
 前提:
   - DLT パイプラインで実行すること。パイプラインのターゲットを kazuki_jedai.gold に設定すること。
   - ソースはカタログ kazuki_jedai の Silver テーブル（kazuki_jedai.silver.message_fact / voice_chat_fact）を 3 レベル名で参照する。
@@ -42,7 +45,7 @@ def _transform_message_by_weekday_hour():
         df.withColumn("weekday", F.expr("(DAYOFWEEK(timestamp) + 5) % 7"))
         .withColumn("hour_slot", F.hour("timestamp"))
         .groupBy("guild_id", "weekday", "hour_slot")
-        .agg(F.count("*").alias("message_count"))
+        .agg(F.count("*").alias("message_count_aggregated"))
     )
 
 
@@ -99,7 +102,7 @@ def _transform_voice_by_weekday_hour_prorated():
     ).withColumn("hour_slot", F.hour("hour_bucket"))
     return (
         voice.groupBy("guild_id", "weekday", "hour_slot")
-        .agg(F.sum("duration_seconds").alias("voice_duration_seconds"))
+        .agg(F.sum("duration_seconds").alias("voice_duration_seconds_aggregated"))
     )
 
 
@@ -116,9 +119,9 @@ def _build_gold_activity_by_weekday_hour():
             F.col("guild_name").cast("string"),
             F.col("weekday").cast("int"),
             F.col("hour_slot").cast("int"),
-            F.col("message_count").cast("long"),
-            F.coalesce(F.col("voice_duration_seconds").cast("double"), F.lit(0.0)).alias(
-                "voice_duration_seconds"
+            F.col("message_count_aggregated").cast("long"),
+            F.coalesce(F.col("voice_duration_seconds_aggregated").cast("double"), F.lit(0.0)).alias(
+                "voice_duration_seconds_aggregated"
             ),
         )
     )
@@ -136,7 +139,7 @@ def _transform_message_daily():
         .filter(F.col("message_date").isNotNull())
         .filter(F.col("guild_id").isNotNull())
         .groupBy("guild_id", F.col("message_date").alias("activity_date"))
-        .agg(F.count("*").alias("message_count"))
+        .agg(F.count("*").alias("message_count_aggregated"))
     )
 
 
@@ -186,7 +189,7 @@ def _transform_voice_daily_prorated():
     ).filter(F.col("duration_seconds") > 0)
     return (
         voice.groupBy("guild_id", "activity_date")
-        .agg(F.sum("duration_seconds").alias("voice_duration_seconds"))
+        .agg(F.sum("duration_seconds").alias("voice_duration_seconds_aggregated"))
     )
 
 
@@ -202,9 +205,9 @@ def _build_gold_activity_daily():
             F.col("guild_id").cast("long"),
             F.col("guild_name").cast("string"),
             F.col("activity_date"),
-            F.col("message_count").cast("long"),
-            F.coalesce(F.col("voice_duration_seconds").cast("double"), F.lit(0.0)).alias(
-                "voice_duration_seconds"
+            F.col("message_count_aggregated").cast("long"),
+            F.coalesce(F.col("voice_duration_seconds_aggregated").cast("double"), F.lit(0.0)).alias(
+                "voice_duration_seconds_aggregated"
             ),
         )
     )
@@ -222,7 +225,7 @@ def _transform_message_by_user():
         .filter(F.col("user_id").isNotNull())
         .filter(F.col("guild_id").isNotNull())
         .groupBy("guild_id", "user_id")
-        .agg(F.count("*").alias("message_count"))
+        .agg(F.count("*").alias("message_count_aggregated"))
     )
 
 
@@ -240,7 +243,7 @@ def _transform_voice_by_user():
             ).cast("double"),
         )
         .groupBy("guild_id", "user_id")
-        .agg(F.sum("duration_seconds").alias("voice_duration_seconds"))
+        .agg(F.sum("duration_seconds").alias("voice_duration_seconds_aggregated"))
     )
 
 
@@ -259,9 +262,9 @@ def _build_gold_user_activity():
             F.col("guild_name").cast("string"),
             F.col("user_id").cast("string").alias("user_id"),
             F.col("user_name").cast("string").alias("user_name"),
-            F.col("message_count").cast("long"),
-            F.coalesce(F.col("voice_duration_seconds").cast("double"), F.lit(0.0)).alias(
-                "voice_duration_seconds"
+            F.col("message_count_aggregated").cast("long"),
+            F.coalesce(F.col("voice_duration_seconds_aggregated").cast("double"), F.lit(0.0)).alias(
+                "voice_duration_seconds_aggregated"
             ),
         )
     )
@@ -279,7 +282,7 @@ def _transform_message_by_channel():
         .filter(F.col("channel_id").isNotNull())
         .filter(F.col("guild_id").isNotNull())
         .groupBy("guild_id", "channel_id", "category_id")
-        .agg(F.count("*").alias("message_count"))
+        .agg(F.count("*").alias("message_count_aggregated"))
     )
 
 
@@ -297,7 +300,7 @@ def _transform_voice_by_channel():
             ).cast("double"),
         )
         .groupBy("guild_id", "channel_id", "category_id")
-        .agg(F.sum("duration_seconds").alias("voice_duration_seconds"))
+        .agg(F.sum("duration_seconds").alias("voice_duration_seconds_aggregated"))
     )
 
 
@@ -320,9 +323,9 @@ def _build_gold_channel_activity():
             F.col("category_id").cast("string").alias("category_id"),
             F.col("channel_name").cast("string").alias("channel_name"),
             F.col("category_name").cast("string").alias("category_name"),
-            F.col("message_count").cast("long"),
-            F.coalesce(F.col("voice_duration_seconds").cast("double"), F.lit(0.0)).alias(
-                "voice_duration_seconds"
+            F.col("message_count_aggregated").cast("long"),
+            F.coalesce(F.col("voice_duration_seconds_aggregated").cast("double"), F.lit(0.0)).alias(
+                "voice_duration_seconds_aggregated"
             ),
         )
     )
@@ -341,8 +344,8 @@ def _build_gold_channel_activity():
 @dlt.expect("guild_id_not_null", "guild_id IS NOT NULL")
 @dlt.expect("weekday_not_null", "weekday IS NOT NULL")
 @dlt.expect("hour_slot_not_null", "hour_slot IS NOT NULL")
-@dlt.expect("message_count_non_negative", "message_count >= 0")
-@dlt.expect("voice_duration_non_negative", "voice_duration_seconds >= 0")
+@dlt.expect("message_count_aggregated_non_negative", "message_count_aggregated >= 0")
+@dlt.expect("voice_duration_seconds_aggregated_non_negative", "voice_duration_seconds_aggregated >= 0")
 def gold_activity_by_weekday_hour():
     return _build_gold_activity_by_weekday_hour()
 
@@ -355,8 +358,8 @@ def gold_activity_by_weekday_hour():
 )
 @dlt.expect("guild_id_not_null", "guild_id IS NOT NULL")
 @dlt.expect("activity_date_not_null", "activity_date IS NOT NULL")
-@dlt.expect("message_count_non_negative", "message_count >= 0")
-@dlt.expect("voice_duration_non_negative", "voice_duration_seconds >= 0")
+@dlt.expect("message_count_aggregated_non_negative", "message_count_aggregated >= 0")
+@dlt.expect("voice_duration_seconds_aggregated_non_negative", "voice_duration_seconds_aggregated >= 0")
 def gold_activity_daily():
     return _build_gold_activity_daily()
 
@@ -368,8 +371,8 @@ def gold_activity_daily():
 )
 @dlt.expect("guild_id_not_null", "guild_id IS NOT NULL")
 @dlt.expect("user_id_not_null", "user_id IS NOT NULL")
-@dlt.expect("message_count_non_negative", "message_count >= 0")
-@dlt.expect("voice_duration_non_negative", "voice_duration_seconds >= 0")
+@dlt.expect("message_count_aggregated_non_negative", "message_count_aggregated >= 0")
+@dlt.expect("voice_duration_seconds_aggregated_non_negative", "voice_duration_seconds_aggregated >= 0")
 def gold_user_activity():
     return _build_gold_user_activity()
 
@@ -381,7 +384,7 @@ def gold_user_activity():
 )
 @dlt.expect("guild_id_not_null", "guild_id IS NOT NULL")
 @dlt.expect("channel_id_not_null", "channel_id IS NOT NULL")
-@dlt.expect("message_count_non_negative", "message_count >= 0")
-@dlt.expect("voice_duration_non_negative", "voice_duration_seconds >= 0")
+@dlt.expect("message_count_aggregated_non_negative", "message_count_aggregated >= 0")
+@dlt.expect("voice_duration_seconds_aggregated_non_negative", "voice_duration_seconds_aggregated >= 0")
 def gold_channel_activity():
     return _build_gold_channel_activity()
