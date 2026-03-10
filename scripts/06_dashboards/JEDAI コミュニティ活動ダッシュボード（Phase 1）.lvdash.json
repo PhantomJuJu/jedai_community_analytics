@@ -1,0 +1,933 @@
+{
+  "datasets": [
+    {
+      "name": "466e9b29",
+      "displayName": "activity_by_weekday_hour",
+      "queryLines": [
+        "SELECT * FROM kazuki_jedai.gold.activity_by_weekday_hour"
+      ],
+      "columns": [
+        {
+          "displayName": "曜日名",
+          "description": "Weekday name in Japanese (Spark dayofweek: 1=Sun)",
+          "expression": "CASE WHEN `weekday` = 1 THEN '日' WHEN `weekday` = 2 THEN '月' WHEN `weekday` = 3 THEN '火' WHEN `weekday` = 4 THEN '水' WHEN `weekday` = 5 THEN '木' WHEN `weekday` = 6 THEN '金' WHEN `weekday` = 7 THEN '土' ELSE CAST(`weekday` AS STRING) END"
+        },
+        {
+          "displayName": "ボイス時間（時間）",
+          "description": "Voice duration in hours",
+          "expression": "`voice_duration_seconds_aggregated` / 3600"
+        }
+      ]
+    },
+    {
+      "name": "ffc3c6ca",
+      "displayName": "user_activity",
+      "queryLines": [
+        "SELECT * FROM kazuki_jedai.gold.user_activity"
+      ],
+      "columns": [
+        {
+          "displayName": "ボイス時間（時間）",
+          "description": "Voice duration converted to hours",
+          "expression": "`voice_duration_seconds_aggregated` / 3600"
+        }
+      ]
+    },
+    {
+      "name": "c2baf9cb",
+      "displayName": "channel_activity",
+      "queryLines": [
+        "SELECT * FROM kazuki_jedai.gold.channel_activity"
+      ]
+    },
+    {
+      "name": "1af2ab2e",
+      "displayName": "activity_daily",
+      "queryLines": [
+        "SELECT * FROM kazuki_jedai.gold.activity_daily"
+      ],
+      "columns": [
+        {
+          "displayName": "ボイス時間（時間）",
+          "description": "Voice duration converted to hours",
+          "expression": "`voice_duration_seconds_aggregated` / 3600"
+        }
+      ]
+    }
+  ],
+  "pages": [
+    {
+      "name": "19efdeef",
+      "displayName": "概要",
+      "layout": [
+        {
+          "widget": {
+            "name": "title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## JEDAI コミュニティ活動ダッシュボード（Phase 1）"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 1
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_messages",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1af2ab2e",
+                  "fields": [
+                    {
+                      "name": "sum(message_count_aggregated)",
+                      "expression": "SUM(`message_count_aggregated`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "今月の合計メッセージ数",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(message_count_aggregated)",
+                  "displayName": "メッセージ数"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 1,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "counter_voice",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1af2ab2e",
+                  "fields": [
+                    {
+                      "name": "sum(ボイス時間（時間）)",
+                      "expression": "SUM(`ボイス時間（時間）`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "今月の合計ボイスチャット使用時間（時間）",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "sum(ボイス時間（時間）)",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    },
+                    "abbreviation": "none"
+                  },
+                  "displayName": "ボイス時間（時間）"
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 1,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_category",
+            "queries": [
+              {
+                "name": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f1193010fb101f945ae2263335775e_category_name",
+                "query": {
+                  "datasetName": "c2baf9cb",
+                  "fields": [
+                    {
+                      "name": "category_name",
+                      "expression": "`category_name`"
+                    },
+                    {
+                      "name": "category_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "カテゴリフィルタ",
+                "showTitle": true
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "category_name",
+                    "queryName": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f1193010fb101f945ae2263335775e_category_name"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 3,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "filter_date",
+            "queries": [
+              {
+                "name": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f119301168114f8dc7473eb299e721_activity_date",
+                "query": {
+                  "datasetName": "1af2ab2e",
+                  "fields": [
+                    {
+                      "name": "activity_date",
+                      "expression": "`activity_date`"
+                    },
+                    {
+                      "name": "activity_date_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "期間フィルタ",
+                "showTitle": true
+              },
+              "widgetType": "filter-date-range-picker",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "activity_date",
+                    "queryName": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f119301168114f8dc7473eb299e721_activity_date"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 3,
+            "width": 6,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "trend_messages",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1af2ab2e",
+                  "fields": [
+                    {
+                      "name": "guild_name",
+                      "expression": "`guild_name`"
+                    },
+                    {
+                      "name": "activity_date",
+                      "expression": "`activity_date`"
+                    },
+                    {
+                      "name": "sum(message_count_aggregated)",
+                      "expression": "SUM(`message_count_aggregated`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "メッセージ回数トレンド",
+                "showTitle": true
+              },
+              "widgetType": "area",
+              "encodings": {
+                "x": {
+                  "fieldName": "activity_date",
+                  "displayName": "活動日",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(message_count_aggregated)",
+                  "displayName": "メッセージ数",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "guild_name",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Guild",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 5,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "trend_voice",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "1af2ab2e",
+                  "fields": [
+                    {
+                      "name": "guild_name",
+                      "expression": "`guild_name`"
+                    },
+                    {
+                      "name": "activity_date",
+                      "expression": "`activity_date`"
+                    },
+                    {
+                      "name": "sum(ボイス時間（時間）)",
+                      "expression": "SUM(`ボイス時間（時間）`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "ボイスチャット使用時間トレンド",
+                "showTitle": true
+              },
+              "widgetType": "area",
+              "encodings": {
+                "x": {
+                  "fieldName": "activity_date",
+                  "displayName": "活動日",
+                  "scale": {
+                    "type": "temporal"
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(ボイス時間（時間）)",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    },
+                    "abbreviation": "none"
+                  },
+                  "displayName": "ボイス時間（時間）",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "guild_name",
+                  "legend": {
+                    "position": "bottom"
+                  },
+                  "displayName": "Guild",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 5,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "heatmap",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "466e9b29",
+                  "fields": [
+                    {
+                      "name": "sum(message_count_aggregated)",
+                      "expression": "SUM(`message_count_aggregated`)"
+                    },
+                    {
+                      "name": "hour_slot",
+                      "expression": "`hour_slot`"
+                    },
+                    {
+                      "name": "曜日名",
+                      "expression": "`曜日名`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "曜日×時間帯 ヒートマップ",
+                "showTitle": true
+              },
+              "widgetType": "heatmap",
+              "encodings": {
+                "x": {
+                  "fieldName": "hour_slot",
+                  "displayName": "時間帯",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "曜日名",
+                  "displayName": "曜日",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "color": {
+                  "fieldName": "sum(message_count_aggregated)",
+                  "displayName": "メッセージ数",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 11,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "bar_weekday",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "466e9b29",
+                  "fields": [
+                    {
+                      "name": "曜日名",
+                      "expression": "`曜日名`"
+                    },
+                    {
+                      "name": "sum(message_count_aggregated)",
+                      "expression": "SUM(`message_count_aggregated`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "曜日別メッセージ数",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "曜日名",
+                  "displayName": "曜日",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "月",
+                        "火",
+                        "水",
+                        "木",
+                        "金",
+                        "土",
+                        "日"
+                      ]
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(message_count_aggregated)",
+                  "displayName": "メッセージ数",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "曜日名",
+                  "displayName": "曜日",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 11,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "bar_user_messages",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ffc3c6ca",
+                  "fields": [
+                    {
+                      "name": "user_name",
+                      "expression": "`user_name`"
+                    },
+                    {
+                      "name": "sum(message_count_aggregated)",
+                      "expression": "SUM(`message_count_aggregated`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "ユーザ別メッセージランキング",
+                "showTitle": true
+              },
+              "rowsPerPage": 25,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "user_name",
+                    "displayName": "ユーザ"
+                  },
+                  {
+                    "fieldName": "sum(message_count_aggregated)",
+                    "displayName": "メッセージ数",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "20"
+                            },
+                            "operator": ">="
+                          },
+                          "backgroundColor": "#E8F5E9",
+                          "foregroundColor": "#2E7D32"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "10"
+                            },
+                            "operator": ">="
+                          },
+                          "backgroundColor": "#FFF8E1",
+                          "foregroundColor": "#F57F17"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "bar_channel_messages",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "c2baf9cb",
+                  "fields": [
+                    {
+                      "name": "channel_name",
+                      "expression": "`channel_name`"
+                    },
+                    {
+                      "name": "sum(message_count_aggregated)",
+                      "expression": "SUM(`message_count_aggregated`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "チャンネル別メッセージランキング",
+                "showTitle": true
+              },
+              "rowsPerPage": 25,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "channel_name",
+                    "displayName": "チャンネル"
+                  },
+                  {
+                    "fieldName": "sum(message_count_aggregated)",
+                    "displayName": "メッセージ数",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "20"
+                            },
+                            "operator": ">="
+                          },
+                          "backgroundColor": "#E8F5E9",
+                          "foregroundColor": "#2E7D32"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "10"
+                            },
+                            "operator": ">="
+                          },
+                          "backgroundColor": "#FFF8E1",
+                          "foregroundColor": "#F57F17"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 17,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "bar_user_voice",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "ffc3c6ca",
+                  "fields": [
+                    {
+                      "name": "user_name",
+                      "expression": "`user_name`"
+                    },
+                    {
+                      "name": "sum(ボイス時間（時間）)",
+                      "expression": "SUM(`ボイス時間（時間）`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "ユーザ別ボイスチャンネル使用時間ランキング",
+                "showTitle": true
+              },
+              "rowsPerPage": 25,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "user_name",
+                    "displayName": "ユーザ"
+                  },
+                  {
+                    "fieldName": "sum(ボイス時間（時間）)",
+                    "displayName": "ボイス時間（時間）",
+                    "style": {
+                      "type": "basic",
+                      "rules": [
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "0.5"
+                            },
+                            "operator": ">="
+                          },
+                          "backgroundColor": "#E8F5E9",
+                          "foregroundColor": "#2E7D32"
+                        },
+                        {
+                          "condition": {
+                            "operand": {
+                              "type": "data-value",
+                              "value": "0.1"
+                            },
+                            "operator": ">="
+                          },
+                          "backgroundColor": "#FFF8E1",
+                          "foregroundColor": "#F57F17"
+                        }
+                      ]
+                    }
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 23,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "notes",
+            "multilineTextboxSpec": {
+              "lines": [
+                "### 補足・凡例\n",
+                "\n",
+                "* **メッセージ数**: Discord上でのテキストメッセージ送信回数\n",
+                "* **ボイスチャット使用時間**: ボイスチャンネル接続時間（秒単位）\n",
+                "* **カテゴリフィルタ**: チャンネル別ウィジェットに適用\n",
+                "* **期間フィルタ**: トレンド・カウンターに適用\n",
+                "\n",
+                "---\n",
+                "*Phase 2 では日/週/月切り替えや運営チャンネル除外の自動化を予定*"
+              ]
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 23,
+            "width": 6,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
+      "name": "71a9897f",
+      "displayName": "Global Filters",
+      "layout": [
+        {
+          "widget": {
+            "name": "filter_guild",
+            "queries": [
+              {
+                "name": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f1193010441a2dbbe59a5ef23acd2d_guild_name",
+                "query": {
+                  "datasetName": "466e9b29",
+                  "fields": [
+                    {
+                      "name": "guild_name",
+                      "expression": "`guild_name`"
+                    },
+                    {
+                      "name": "guild_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f11930109511c0b86ea6b4b407ab85_guild_name",
+                "query": {
+                  "datasetName": "ffc3c6ca",
+                  "fields": [
+                    {
+                      "name": "guild_name",
+                      "expression": "`guild_name`"
+                    },
+                    {
+                      "name": "guild_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f1193010fb101f945ae2263335775e_guild_name",
+                "query": {
+                  "datasetName": "c2baf9cb",
+                  "fields": [
+                    {
+                      "name": "guild_name",
+                      "expression": "`guild_name`"
+                    },
+                    {
+                      "name": "guild_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f119301168114f8dc7473eb299e721_guild_name",
+                "query": {
+                  "datasetName": "1af2ab2e",
+                  "fields": [
+                    {
+                      "name": "guild_name",
+                      "expression": "`guild_name`"
+                    },
+                    {
+                      "name": "guild_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "Guildフィルタ",
+                "showTitle": true
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "guild_name",
+                    "queryName": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f1193010441a2dbbe59a5ef23acd2d_guild_name"
+                  },
+                  {
+                    "fieldName": "guild_name",
+                    "queryName": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f11930109511c0b86ea6b4b407ab85_guild_name"
+                  },
+                  {
+                    "fieldName": "guild_name",
+                    "queryName": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f1193010fb101f945ae2263335775e_guild_name"
+                  },
+                  {
+                    "fieldName": "guild_name",
+                    "queryName": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f119301168114f8dc7473eb299e721_guild_name"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 6,
+            "height": 2
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
+      "layoutVersion": "GRID_V1"
+    }
+  ],
+  "uiSettings": {
+    "theme": {
+      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+    },
+    "applyModeEnabled": false
+  }
+}

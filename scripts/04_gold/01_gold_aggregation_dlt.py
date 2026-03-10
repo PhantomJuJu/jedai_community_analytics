@@ -11,7 +11,7 @@ guild_name 等の表示名を付与したうえで、Gold スキーマ（kazuki_
 前提:
   - DLT パイプラインで実行すること。パイプラインのターゲットを kazuki_jedai.gold に設定すること。
   - ソースはカタログ kazuki_jedai の Silver テーブル（kazuki_jedai.silver.message_fact / voice_chat_fact）を 3 レベル名で参照する。
-  - 日付・時刻の導出（weekday, hour_slot, activity_date 等）は Spark セッションのタイムゾーンに依存する。プロジェクト方針（例: UTC）に合わせてクラスタのタイムゾーンを設定すること。
+  - 日付・時刻の導出（weekday, hour_slot, activity_date 等）は PIPELINE_TIMEZONE 定数で制御される。
   - 実行ごとにフルリフレッシュ（パイプラインの Full refresh 設定）を推奨。
 
 Author: Kazuki Date
@@ -25,6 +25,9 @@ from pyspark.sql import functions as F
 CATALOG = "kazuki_jedai"
 SILVER_SCHEMA = f"{CATALOG}.silver"
 SECONDS_PER_HOUR = 3600
+MAX_SESSION_HOURS = 24  # Cap voice sessions to prevent sequence explosion on abnormal data
+PIPELINE_TIMEZONE = "Asia/Tokyo"  # Explicit timezone for date/time derivations (JST)
+spark.conf.set("spark.sql.session.timeZone", PIPELINE_TIMEZONE)
 
 
 # ---------------------------------------------------------------------------
@@ -59,6 +62,11 @@ def _transform_voice_by_weekday_hour_prorated():
         .filter(F.col("left_at").isNotNull())
         .filter(F.col("left_at") >= F.col("joined_at"))
         .filter(F.col("guild_id").isNotNull())
+    )
+    # Cap session to MAX_SESSION_HOURS to guard against abnormally long sessions
+    voice = voice.withColumn(
+        "left_at",
+        F.least(F.col("left_at"), F.col("joined_at") + F.expr(f"INTERVAL {MAX_SESSION_HOURS} HOURS")),
     )
     # 時間単位で区切った開始・終了（unix 秒）
     voice = voice.withColumn(
@@ -112,14 +120,14 @@ def _build_gold_activity_by_weekday_hour():
     voice = _transform_voice_by_weekday_hour_prorated()
     guild = _get_guild_dim()
     return (
-        msg.join(voice, ["guild_id", "weekday", "hour_slot"], "left")
+        msg.join(voice, ["guild_id", "weekday", "hour_slot"], "full")
         .join(guild, "guild_id", "left")
         .select(
             F.col("guild_id").cast("long"),
             F.col("guild_name").cast("string"),
             F.col("weekday").cast("int"),
             F.col("hour_slot").cast("int"),
-            F.col("message_count_aggregated").cast("long"),
+            F.coalesce(F.col("message_count_aggregated").cast("long"), F.lit(0)).alias("message_count_aggregated"),
             F.coalesce(F.col("voice_duration_seconds_aggregated").cast("double"), F.lit(0.0)).alias(
                 "voice_duration_seconds_aggregated"
             ),
@@ -153,6 +161,11 @@ def _transform_voice_daily_prorated():
         .filter(F.col("left_at").isNotNull())
         .filter(F.col("left_at") >= F.col("joined_at"))
         .filter(F.col("guild_id").isNotNull())
+    )
+    # Cap session to MAX_SESSION_HOURS to guard against abnormally long sessions
+    voice = voice.withColumn(
+        "left_at",
+        F.least(F.col("left_at"), F.col("joined_at") + F.expr(f"INTERVAL {MAX_SESSION_HOURS} HOURS")),
     )
     voice = voice.withColumn(
         "_start_date",
@@ -199,13 +212,13 @@ def _build_gold_activity_daily():
     voice = _transform_voice_daily_prorated()
     guild = _get_guild_dim()
     return (
-        msg.join(voice, ["guild_id", "activity_date"], "left")
+        msg.join(voice, ["guild_id", "activity_date"], "full")
         .join(guild, "guild_id", "left")
         .select(
             F.col("guild_id").cast("long"),
             F.col("guild_name").cast("string"),
             F.col("activity_date"),
-            F.col("message_count_aggregated").cast("long"),
+            F.coalesce(F.col("message_count_aggregated").cast("long"), F.lit(0)).alias("message_count_aggregated"),
             F.coalesce(F.col("voice_duration_seconds_aggregated").cast("double"), F.lit(0.0)).alias(
                 "voice_duration_seconds_aggregated"
             ),
@@ -231,12 +244,19 @@ def _transform_message_by_user():
 
 def _transform_voice_by_user():
     """voice_chat_fact で left_at - joined_at を秒で計算し (guild_id, user_id) で SUM。"""
-    return (
+    voice = (
         spark.read.table(f"{SILVER_SCHEMA}.voice_chat_fact")
         .filter(F.col("left_at").isNotNull())
         .filter(F.col("left_at") >= F.col("joined_at"))
         .filter(F.col("guild_id").isNotNull())
-        .withColumn(
+    )
+    # Cap session to MAX_SESSION_HOURS for consistency across all Gold aggregations
+    voice = voice.withColumn(
+        "left_at",
+        F.least(F.col("left_at"), F.col("joined_at") + F.expr(f"INTERVAL {MAX_SESSION_HOURS} HOURS")),
+    )
+    return (
+        voice.withColumn(
             "duration_seconds",
             (
                 F.unix_timestamp("left_at") - F.unix_timestamp("joined_at")
@@ -254,7 +274,7 @@ def _build_gold_user_activity():
     user_dim = spark.read.table(f"{SILVER_SCHEMA}.user_dim").select("user_id", "user_name")
     guild = _get_guild_dim()
     return (
-        msg.join(voice, ["guild_id", "user_id"], "left")
+        msg.join(voice, ["guild_id", "user_id"], "full")
         .join(user_dim, "user_id", "left")
         .join(guild, "guild_id", "left")
         .select(
@@ -262,7 +282,7 @@ def _build_gold_user_activity():
             F.col("guild_name").cast("string"),
             F.col("user_id").cast("string").alias("user_id"),
             F.col("user_name").cast("string").alias("user_name"),
-            F.col("message_count_aggregated").cast("long"),
+            F.coalesce(F.col("message_count_aggregated").cast("long"), F.lit(0)).alias("message_count_aggregated"),
             F.coalesce(F.col("voice_duration_seconds_aggregated").cast("double"), F.lit(0.0)).alias(
                 "voice_duration_seconds_aggregated"
             ),
@@ -288,12 +308,19 @@ def _transform_message_by_channel():
 
 def _transform_voice_by_channel():
     """voice_chat_fact で duration を計算し (guild_id, channel_id, category_id) で SUM。"""
-    return (
+    voice = (
         spark.read.table(f"{SILVER_SCHEMA}.voice_chat_fact")
         .filter(F.col("left_at").isNotNull())
         .filter(F.col("left_at") >= F.col("joined_at"))
         .filter(F.col("guild_id").isNotNull())
-        .withColumn(
+    )
+    # Cap session to MAX_SESSION_HOURS for consistency across all Gold aggregations
+    voice = voice.withColumn(
+        "left_at",
+        F.least(F.col("left_at"), F.col("joined_at") + F.expr(f"INTERVAL {MAX_SESSION_HOURS} HOURS")),
+    )
+    return (
+        voice.withColumn(
             "duration_seconds",
             (
                 F.unix_timestamp("left_at") - F.unix_timestamp("joined_at")
@@ -312,7 +339,7 @@ def _build_gold_channel_activity():
     channel_dim = spark.read.table(f"{SILVER_SCHEMA}.channel_dim").select("channel_id", "channel_name")
     category_dim = spark.read.table(f"{SILVER_SCHEMA}.category_dim").select("category_id", "category_name")
     return (
-        msg.join(voice, ["guild_id", "channel_id", "category_id"], "left")
+        msg.join(voice, ["guild_id", "channel_id", "category_id"], "full")
         .join(guild, "guild_id", "left")
         .join(channel_dim, "channel_id", "left")
         .join(category_dim, "category_id", "left")
@@ -323,7 +350,7 @@ def _build_gold_channel_activity():
             F.col("category_id").cast("string").alias("category_id"),
             F.col("channel_name").cast("string").alias("channel_name"),
             F.col("category_name").cast("string").alias("category_name"),
-            F.col("message_count_aggregated").cast("long"),
+            F.coalesce(F.col("message_count_aggregated").cast("long"), F.lit(0)).alias("message_count_aggregated"),
             F.coalesce(F.col("voice_duration_seconds_aggregated").cast("double"), F.lit(0.0)).alias(
                 "voice_duration_seconds_aggregated"
             ),
@@ -339,7 +366,6 @@ def _build_gold_channel_activity():
 @dlt.table(
     name="activity_by_weekday_hour",
     comment="曜日×時間帯ごとのメッセージ数・ボイス使用時間（ヒートマップ・曜日別 Bar 用）。",
-    table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 @dlt.expect("guild_id_not_null", "guild_id IS NOT NULL")
 @dlt.expect("weekday_not_null", "weekday IS NOT NULL")
@@ -354,7 +380,6 @@ def gold_activity_by_weekday_hour():
     name="activity_daily",
     comment="日付ごとのメッセージ数・ボイス使用時間（時系列トレンド・今月 KPI 用）。",
     partition_cols=["activity_date"],
-    table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 @dlt.expect("guild_id_not_null", "guild_id IS NOT NULL")
 @dlt.expect("activity_date_not_null", "activity_date IS NOT NULL")
@@ -367,7 +392,6 @@ def gold_activity_daily():
 @dlt.table(
     name="user_activity",
     comment="ユーザごとのメッセージ数・ボイス使用時間（ユーザ別活動ランキング用）。",
-    table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 @dlt.expect("guild_id_not_null", "guild_id IS NOT NULL")
 @dlt.expect("user_id_not_null", "user_id IS NOT NULL")
@@ -380,7 +404,6 @@ def gold_user_activity():
 @dlt.table(
     name="channel_activity",
     comment="チャンネル・カテゴリごとのメッセージ数・ボイス使用時間（チャンネル別比較・カテゴリ Exclude 用）。",
-    table_properties={"pipelines.autoOptimize.managed": "true"},
 )
 @dlt.expect("guild_id_not_null", "guild_id IS NOT NULL")
 @dlt.expect("channel_id_not_null", "channel_id IS NOT NULL")
