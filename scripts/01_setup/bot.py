@@ -273,35 +273,49 @@ def _db_insert_voice_sync(data: Dict[str, Any]) -> None:
 
 
 def _db_insert_channels_batch_sync(rows: List[Dict[str, Any]]) -> None:
-    """日次チャンネルスナップショット行を discord_channels_raw に一括 INSERT。Executor 内で呼ぶ。"""
+    """
+    日次チャンネルスナップショットを discord_channels_raw に書き込む。Executor 内で呼ぶ。
+    同一 snapshot_date の既存行を削除してから INSERT するため、1日1スナップショットで重複しない。
+    """
     if not _DATABRICKS_ENABLED or not rows:
         return
     conn = _db_connect_sync()
     if conn is None:
         return
     catalog, schema = _DB_CATALOG, _DB_SCHEMA
-    sql = f"""
-    INSERT INTO {catalog}.{schema}.discord_channels_raw (
+    snapshot_date = rows[0].get("snapshot_date")
+    if not snapshot_date:
+        logger.warning("Discord channels sync: no snapshot_date in rows, skipping write")
+        return
+    target = f"{catalog}.{schema}.discord_channels_raw"
+    delete_sql = f"DELETE FROM {target} WHERE snapshot_date = ?"
+    insert_sql = f"""
+    INSERT INTO {target} (
         snapshot_date, guild_id, guild_name, channel_id, channel_type, channel_name, category_id
     ) VALUES (?, ?, ?, ?, ?, ?, ?)
     """
+    params_list = [
+        (
+            r.get("snapshot_date"),
+            r.get("guild_id"),
+            r.get("guild_name") or "",
+            r.get("channel_id"),
+            r.get("channel_type"),
+            r.get("channel_name") or "",
+            int(r["category_id"]) if r.get("category_id") is not None else None,
+        )
+        for r in rows
+    ]
     try:
         with conn.cursor() as cur:
-            for r in rows:
-                cur.execute(sql, [
-                    r.get("snapshot_date"),
-                    r.get("guild_id"),
-                    r.get("guild_name") or "",
-                    r.get("channel_id"),
-                    r.get("channel_type"),
-                    r.get("channel_name") or "",
-                    int(r["category_id"]) if r.get("category_id") is not None else None,
-                ])
+            cur.execute(delete_sql, (snapshot_date,))
+            cur.executemany(insert_sql, params_list)
         conn.commit()
         logger.info(
-            "Databricks discord_channels_raw: inserted %d rows",
+            "Databricks discord_channels_raw: replaced snapshot_date=%s with %d rows",
+            snapshot_date,
             len(rows),
-            extra={"row_count": len(rows)},
+            extra={"snapshot_date": snapshot_date, "row_count": len(rows)},
         )
     except Exception as e:
         logger.error(
