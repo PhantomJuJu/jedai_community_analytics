@@ -1,10 +1,11 @@
 # =============================================================================
-# タイトル: Discord REST API でギルド・チャンネル一覧を取得（Guild channels のみ）
+# タイトル: Discord REST API でギルド・チャンネル・スレッド一覧を取得
 # =============================================================================
 from __future__ import annotations
 # サマリー:
-#   Bot トークンで GET /guilds/{guild.id}/channels を叩き、ギルド内チャンネル一覧のみを
-#   取得する。guild_list / guild_detail / guild_members の取得・保存は行わない。
+#   Bot トークンで GET /guilds/{guild.id}/channels でギルド内チャンネル一覧、
+#   GET /guilds/{guild.id}/threads/active でアクティブスレッド一覧を取得する。
+#   guild_list / guild_detail / guild_members の取得・保存は行わない。
 #
 # 実行前提:
 #   - リポジトリルートで .env を読み込めること。例: cd jedai_pj && python3 scripts/01_setup/fetch_guild_info.py
@@ -27,6 +28,7 @@ import logging
 import os
 import re
 import sys
+import time
 from pathlib import Path
 from typing import Any
 from urllib.error import HTTPError, URLError
@@ -135,6 +137,54 @@ def get_guild_channels(token: str, guild_id: str) -> list[dict[str, Any]]:
     """GET /guilds/{guild.id}/channels でギルド内チャンネル一覧を返す。"""
     path = f"/guilds/{guild_id}/channels"
     return _request("GET", path, token)
+
+
+def get_guild_threads_active(token: str, guild_id: str, max_retries: int = 3) -> list[dict[str, Any]]:
+    """
+    GET /guilds/{guild_id}/threads/active でギルド内のアクティブスレッド一覧を返す。
+    429 レート制限時は Retry-After 秒待ってリトライする。失敗時はログして空リストを返す。
+    """
+    path = f"/guilds/{guild_id}/threads/active"
+    last_exc = None
+    for attempt in range(max_retries + 1):
+        try:
+            data = _request("GET", path, token)
+            if isinstance(data, dict):
+                return data.get("threads") or []
+            return []
+        except HTTPError as e:
+            last_exc = e
+            if e.code == 429 and attempt < max_retries:
+                try:
+                    retry_after = int(e.headers.get("Retry-After", 1) or 1)
+                except (TypeError, ValueError):
+                    retry_after = 1
+                retry_after = max(1, min(retry_after, 60))
+                logger.warning(
+                    "Discord threads API rate limit (429), retrying after %s s (guild_id=%s)",
+                    retry_after,
+                    guild_id,
+                    extra={"error_code": ERROR_REQUEST_HTTP, "guild_id": guild_id},
+                )
+                time.sleep(retry_after)
+                continue
+            logger.warning(
+                "Discord threads API HTTP error (guild_id=%s): %s %s",
+                guild_id,
+                e.code,
+                e.reason,
+                extra={"error_code": ERROR_REQUEST_HTTP, "guild_id": guild_id, "status_code": e.code},
+            )
+            return []
+        except (URLError, ValueError, json.JSONDecodeError) as e:
+            logger.warning(
+                "Discord threads API error (guild_id=%s): %s",
+                guild_id,
+                e,
+                extra={"error_code": ERROR_REQUEST_NETWORK, "guild_id": guild_id},
+            )
+            return []
+    return []
 
 
 def filter_channel(channel: dict[str, Any]) -> dict[str, Any]:

@@ -55,6 +55,7 @@ from fetch_guild_info import (
     filter_channel,
     get_bot_guilds,
     get_guild_channels,
+    get_guild_threads_active,
 )
 
 # ボイス「待機」セッション: (guild_id, user_id) -> { session_id, joined_at, channel_*, ... }
@@ -181,7 +182,8 @@ def _db_ensure_tables_sync() -> None:
         channel_id STRING,
         channel_type INT,
         channel_name STRING,
-        category_id BIGINT
+        category_id BIGINT,
+        parent_id BIGINT
     )
     """
     try:
@@ -190,6 +192,19 @@ def _db_ensure_tables_sync() -> None:
             cur.execute(voice_sql)
             cur.execute(channels_sql)
         conn.commit()
+        try:
+            with conn.cursor() as cur:
+                cur.execute(
+                    f"ALTER TABLE {catalog}.{schema}.discord_channels_raw ADD COLUMN parent_id BIGINT"
+                )
+            conn.commit()
+        except Exception as alt_e:
+            conn.rollback()
+            if "already exists" not in str(alt_e).lower() and "duplicate" not in str(alt_e).lower():
+                logger.debug(
+                    "discord_channels_raw parent_id (may already exist): %s",
+                    alt_e,
+                )
         logger.info(
             "Databricks tables created/verified: %s.%s.discord_messages_raw, discord_voice_activity_raw, discord_channels_raw",
             catalog,
@@ -291,8 +306,8 @@ def _db_insert_channels_batch_sync(rows: List[Dict[str, Any]]) -> None:
     delete_sql = f"DELETE FROM {target} WHERE snapshot_date = ?"
     insert_sql = f"""
     INSERT INTO {target} (
-        snapshot_date, guild_id, guild_name, channel_id, channel_type, channel_name, category_id
-    ) VALUES (?, ?, ?, ?, ?, ?, ?)
+        snapshot_date, guild_id, guild_name, channel_id, channel_type, channel_name, category_id, parent_id
+    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)
     """
     params_list = [
         (
@@ -303,6 +318,7 @@ def _db_insert_channels_batch_sync(rows: List[Dict[str, Any]]) -> None:
             r.get("channel_type"),
             r.get("channel_name") or "",
             int(r["category_id"]) if r.get("category_id") is not None else None,
+            int(r["parent_id"]) if r.get("parent_id") is not None else None,
         )
         for r in rows
     ]
@@ -422,10 +438,26 @@ def _run_daily_channel_fetch_sync(token: str) -> List[Dict[str, Any]]:
                 "channel_type": int(ch.get("type", 0)),
                 "channel_name": (ch.get("name") or ""),
                 "category_id": int(ch["parent_id"]) if ch.get("parent_id") is not None else None,
+                "parent_id": None,
+            })
+        threads = get_guild_threads_active(token, guild_id_str)
+        for th in threads:
+            th_id = th.get("id")
+            if th_id is None:
+                continue
+            rows.append({
+                "snapshot_date": snapshot_date,
+                "guild_id": guild_id_str,
+                "guild_name": guild_name,
+                "channel_id": str(th_id),
+                "channel_type": int(th.get("type", 0)),
+                "channel_name": (th.get("name") or ""),
+                "category_id": None,
+                "parent_id": int(th["parent_id"]) if th.get("parent_id") is not None else None,
             })
 
     logger.info(
-        "Daily channel sync: fetched %d guild(s), %d channel rows",
+        "Daily channel sync: fetched %d guild(s), %d channel rows (channels + threads)",
         len(guilds),
         len(rows),
         extra={"guild_count": len(guilds), "row_count": len(rows)},
