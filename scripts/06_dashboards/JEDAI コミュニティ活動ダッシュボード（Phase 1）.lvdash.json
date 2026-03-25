@@ -9,8 +9,8 @@
       "columns": [
         {
           "displayName": "曜日名",
-          "description": "Weekday name in Japanese (Spark dayofweek: 1=Sun)",
-          "expression": "CASE WHEN `weekday` = 1 THEN '日' WHEN `weekday` = 2 THEN '月' WHEN `weekday` = 3 THEN '火' WHEN `weekday` = 4 THEN '水' WHEN `weekday` = 5 THEN '木' WHEN `weekday` = 6 THEN '金' WHEN `weekday` = 7 THEN '土' ELSE CAST(`weekday` AS STRING) END"
+          "description": "Weekday name in Japanese (0=Mon, 6=Sun)",
+          "expression": "CASE WHEN `weekday` = 0 THEN '1. 月' WHEN `weekday` = 1 THEN '2. 火' WHEN `weekday` = 2 THEN '3. 水' WHEN `weekday` = 3 THEN '4. 木' WHEN `weekday` = 4 THEN '5. 金' WHEN `weekday` = 5 THEN '6. 土' WHEN `weekday` = 6 THEN '7. 日' ELSE CAST(`weekday` AS STRING) END"
         },
         {
           "displayName": "ボイス時間（時間）",
@@ -429,7 +429,7 @@
             "spec": {
               "version": 3,
               "frame": {
-                "title": "曜日×時間帯 ヒートマップ",
+                "title": "曜日×時間帯 メッセージ数ヒートマップ",
                 "showTitle": true
               },
               "widgetType": "heatmap",
@@ -464,7 +464,7 @@
           "position": {
             "x": 0,
             "y": 11,
-            "width": 6,
+            "width": 12,
             "height": 6
           }
         },
@@ -506,13 +506,13 @@
                     "sort": {
                       "by": "custom-order",
                       "orderedValues": [
-                        "月",
-                        "火",
-                        "水",
-                        "木",
-                        "金",
-                        "土",
-                        "日"
+                        "1. 月",
+                        "2. 火",
+                        "3. 水",
+                        "4. 木",
+                        "5. 金",
+                        "6. 土",
+                        "7. 日"
                       ]
                     }
                   }
@@ -538,8 +538,8 @@
             }
           },
           "position": {
-            "x": 6,
-            "y": 11,
+            "x": 0,
+            "y": 23,
             "width": 6,
             "height": 6
           }
@@ -617,7 +617,7 @@
           },
           "position": {
             "x": 0,
-            "y": 17,
+            "y": 29,
             "width": 6,
             "height": 6
           }
@@ -695,7 +695,7 @@
           },
           "position": {
             "x": 6,
-            "y": 17,
+            "y": 29,
             "width": 6,
             "height": 6
           }
@@ -773,7 +773,7 @@
           },
           "position": {
             "x": 0,
-            "y": 23,
+            "y": 35,
             "width": 6,
             "height": 6
           }
@@ -793,6 +793,158 @@
                 "---\n",
                 "*Phase 2 では日/週/月切り替えや運営チャンネル除外の自動化を予定*"
               ]
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 35,
+            "width": 6,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "heatmap_voice",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "466e9b29",
+                  "fields": [
+                    {
+                      "name": "sum(ボイス時間（時間）)",
+                      "expression": "SUM(`ボイス時間（時間）`)"
+                    },
+                    {
+                      "name": "hour_slot",
+                      "expression": "`hour_slot`"
+                    },
+                    {
+                      "name": "曜日名",
+                      "expression": "`曜日名`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "曜日×時間帯 ボイス使用時間ヒートマップ",
+                "showTitle": true
+              },
+              "widgetType": "heatmap",
+              "encodings": {
+                "x": {
+                  "fieldName": "hour_slot",
+                  "displayName": "時間帯",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "曜日名",
+                  "displayName": "曜日",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "color": {
+                  "fieldName": "sum(ボイス時間（時間）)",
+                  "displayName": "ボイス時間（時間）",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 17,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "bar_voice_weekday",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "466e9b29",
+                  "fields": [
+                    {
+                      "name": "曜日名",
+                      "expression": "`曜日名`"
+                    },
+                    {
+                      "name": "sum(ボイス時間（時間）)",
+                      "expression": "SUM(`ボイス時間（時間）`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "曜日別ボイスチャット時間数",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "曜日名",
+                  "displayName": "曜日",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "1. 月",
+                        "2. 火",
+                        "3. 水",
+                        "4. 木",
+                        "5. 金",
+                        "6. 土",
+                        "7. 日"
+                      ]
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "sum(ボイス時間（時間）)",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    },
+                    "abbreviation": "none"
+                  },
+                  "displayName": "ボイス時間（時間）",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "曜日名",
+                  "displayName": "曜日",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              }
             }
           },
           "position": {
@@ -918,6 +1070,52 @@
             "width": 6,
             "height": 2
           }
+        },
+        {
+          "widget": {
+            "name": "filter_category_global",
+            "queries": [
+              {
+                "name": "dashboards/01f12803528416af8582e96370dfe830/datasets/01f12803528417f7a20ed3462141c147_category_name",
+                "query": {
+                  "datasetName": "c2baf9cb",
+                  "fields": [
+                    {
+                      "name": "category_name",
+                      "expression": "`category_name`"
+                    },
+                    {
+                      "name": "category_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "カテゴリフィルタ",
+                "showTitle": true
+              },
+              "widgetType": "filter-multi-select",
+              "encodings": {
+                "fields": [
+                  {
+                    "fieldName": "category_name",
+                    "queryName": "dashboards/01f12803528416af8582e96370dfe830/datasets/01f12803528417f7a20ed3462141c147_category_name"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 6,
+            "y": 0,
+            "width": 6,
+            "height": 2
+          }
         }
       ],
       "pageType": "PAGE_TYPE_GLOBAL_FILTERS",
@@ -926,7 +1124,39 @@
   ],
   "uiSettings": {
     "theme": {
-      "widgetHeaderAlignment": "ALIGNMENT_UNSPECIFIED"
+      "canvasBackgroundColor": {
+        "light": "#F6FAFB",
+        "dark": "#1B1F23"
+      },
+      "widgetBackgroundColor": {
+        "light": "#FFFFFF",
+        "dark": "#2A2F35"
+      },
+      "widgetBorderColor": {
+        "light": "#D7E1E9",
+        "dark": "#3C444C"
+      },
+      "fontColor": {
+        "light": "#374151",
+        "dark": "#E4E9EE"
+      },
+      "selectionColor": {
+        "light": "#5FA8D3",
+        "dark": "#5FA8D3"
+      },
+      "visualizationColors": [
+        "#5FA8D3",
+        "#70BEE1",
+        "#89CCE7",
+        "#A1DAEC",
+        "#B3E6DC",
+        "#89C7A8",
+        "#6EAD80",
+        "#589F60",
+        "#478743",
+        "#356C2A"
+      ],
+      "widgetHeaderAlignment": "LEFT"
     },
     "applyModeEnabled": false
   }
