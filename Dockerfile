@@ -13,6 +13,10 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Bot で使うスクリプトをコピー（bot.py が fetch_guild_info を import するので両方必要）
 COPY scripts/01_setup/bot.py scripts/01_setup/
 COPY scripts/01_setup/fetch_guild_info.py scripts/01_setup/
+COPY scripts/01_setup/scheduler.py scripts/01_setup/
+COPY scripts/01_setup/api_server.py scripts/01_setup/
+
+EXPOSE 8080
 
 # コンテナ起動時に実行するコマンド
 CMD ["python", "scripts/01_setup/bot.py"]

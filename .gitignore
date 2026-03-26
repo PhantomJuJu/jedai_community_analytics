@@ -2,6 +2,7 @@
 .env
 .env.*
 !.env.example
+jedai-bot.env
 .DS_Store
 
 # Python
