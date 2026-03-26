@@ -36,6 +36,7 @@ from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 import discord
+from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -57,6 +58,8 @@ from fetch_guild_info import (
     get_guild_channels,
     get_guild_threads_active,
 )
+from scheduler import ScheduledPostManager
+from api_server import start_api_server
 
 # ボイス「待機」セッション: (guild_id, user_id) -> { session_id, joined_at, channel_*, ... }
 _voice_pending: Dict[tuple[str, str], Dict[str, Any]] = {}
@@ -75,6 +78,8 @@ intents.guild_messages = True
 intents.voice_states = True
 
 bot = commands.Bot(command_prefix="!", intents=intents)
+
+scheduler = ScheduledPostManager()
 
 # タイムスタンプ形式: yyyy-MM-dd HH:mm:ss（Databricks・人間可読）
 TS_FORMAT = "%Y-%m-%d %H:%M:%S"
@@ -524,6 +529,13 @@ async def on_ready():
             extra={"catalog": _DB_CATALOG, "schema": _DB_SCHEMA},
         )
     asyncio.create_task(daily_channel_sync_loop())
+    await scheduler.setup()
+    asyncio.create_task(scheduler.run_scheduler_loop(bot))
+    await bot.tree.sync()
+    logger.info("Slash commands synced")
+    if os.getenv("API_ENABLED", "").lower() == "true":
+        asyncio.create_task(start_api_server(scheduler))
+        logger.info("API server starting on port %s", os.getenv("API_PORT", "8080"))
 
 
 @bot.event
@@ -660,6 +672,724 @@ async def save_voice_activity_data(
             left_at=ts_str,
         )
     await _run_db_sync(_db_insert_voice_sync, data)
+
+
+# ----- 予約投稿・定期投稿 UI -----
+
+_TEXT_CHANNEL_TYPES: list[discord.ChannelType] = [
+    discord.ChannelType.text,
+    discord.ChannelType.news,
+]
+_JST = timezone(timedelta(hours=9))
+_SELECT_OPTION_LIMIT = 25
+
+
+def _parse_optional_int_env(var_name: str) -> Optional[int]:
+    """整数環境変数を安全に読み込む。無効値は warning を出して無視する。"""
+    raw = (os.getenv(var_name) or "").strip()
+    if not raw:
+        return None
+    try:
+        return int(raw)
+    except ValueError:
+        logger.warning("Invalid %s value (must be integer): %r", var_name, raw)
+        return None
+
+
+def _parse_id_list_env(var_name: str) -> set[int]:
+    """カンマ区切りの ID 一覧を安全にパースする。無効値は warning 後にスキップ。"""
+    raw = os.getenv(var_name, "")
+    parsed: set[int] = set()
+    if not raw.strip():
+        return parsed
+    for token in raw.split(","):
+        value = token.strip()
+        if not value:
+            continue
+        try:
+            parsed.add(int(value))
+        except ValueError:
+            logger.warning("Invalid ID in %s: %r (skipped)", var_name, value)
+    return parsed
+
+
+_ANNOUNCE_GUILD_ID = _parse_optional_int_env("ANNOUNCE_GUILD_ID")
+_ANNOUNCE_CHANNEL_IDS = _parse_id_list_env("ANNOUNCE_CHANNEL_IDS")
+_ANNOUNCE_ROLE_IDS = _parse_id_list_env("ANNOUNCE_ROLE_IDS")
+
+
+def _is_announce_restriction_enabled(guild_id: int) -> bool:
+    """指定ギルドでのみホワイトリスト制御を有効化する。"""
+    return _ANNOUNCE_GUILD_ID is not None and guild_id == _ANNOUNCE_GUILD_ID
+
+
+def _list_selectable_text_channels(guild: discord.Guild) -> list[discord.abc.GuildChannel]:
+    """投稿先候補チャンネル一覧を返す（必要に応じてホワイトリスト適用）。"""
+    if _is_announce_restriction_enabled(guild.id):
+        channels: list[discord.abc.GuildChannel] = []
+        for channel_id in sorted(_ANNOUNCE_CHANNEL_IDS):
+            channel = guild.get_channel(channel_id)
+            if channel is None:
+                logger.warning(
+                    "ANNOUNCE_CHANNEL_IDS contains missing channel_id=%s in guild_id=%s",
+                    channel_id,
+                    guild.id,
+                )
+                continue
+            if channel.type not in _TEXT_CHANNEL_TYPES:
+                logger.warning(
+                    "ANNOUNCE_CHANNEL_IDS channel_id=%s is not text/news in guild_id=%s",
+                    channel_id,
+                    guild.id,
+                )
+                continue
+            channels.append(channel)
+        return channels
+
+    all_channels = [
+        ch
+        for ch in guild.channels
+        if isinstance(ch, discord.abc.GuildChannel) and ch.type in _TEXT_CHANNEL_TYPES
+    ]
+    all_channels.sort(key=lambda c: c.position)
+    return all_channels
+
+
+def _list_selectable_roles(guild: discord.Guild) -> list[discord.Role]:
+    """メンション候補ロール一覧を返す（必要に応じてホワイトリスト適用）。"""
+    if _is_announce_restriction_enabled(guild.id):
+        roles: list[discord.Role] = []
+        for role_id in sorted(_ANNOUNCE_ROLE_IDS):
+            role = guild.get_role(role_id)
+            if role is None:
+                logger.warning(
+                    "ANNOUNCE_ROLE_IDS contains missing role_id=%s in guild_id=%s",
+                    role_id,
+                    guild.id,
+                )
+                continue
+            roles.append(role)
+        return roles
+
+    all_roles = [role for role in guild.roles if not role.is_default() and not role.managed]
+    all_roles.sort(key=lambda r: r.position, reverse=True)
+    return all_roles
+
+
+def _build_content_with_role_mentions(original_content: str, selected_role_ids: list[str]) -> str:
+    """選択されたロールメンションを本文先頭に付与する。"""
+    if not selected_role_ids:
+        return original_content
+    mention_prefix = " ".join([f"<@&{role_id}>" for role_id in selected_role_ids])
+    return f"{mention_prefix}\n{original_content}"
+
+
+def parse_jst_datetime(text: str) -> datetime:
+    """
+    "YYYY-MM-DD HH:MM" 形式の文字列をJSTとして解釈し、
+    UTC の aware datetime を返す。
+    パース失敗時は ValueError を raise。
+    """
+    dt = datetime.strptime(text.strip(), "%Y-%m-%d %H:%M")
+    return dt.replace(tzinfo=_JST).astimezone(timezone.utc)
+
+
+def _parse_optional_end_date_jst_to_utc(text: str) -> Optional[datetime]:
+    """YYYY-MM-DD をその日の終わり（JST 23:59:59）として UTC datetime に変換する。"""
+    stripped = text.strip()
+    if not stripped:
+        return None
+    day = datetime.strptime(stripped, "%Y-%m-%d").date()
+    end_local = datetime.combine(day, datetime.min.time().replace(hour=23, minute=59, second=59))
+    return end_local.replace(tzinfo=_JST).astimezone(timezone.utc)
+
+
+def _scheduled_at_display_jst(iso_str: str) -> str:
+    """DB の scheduled_at（ISO UTC）を JST 表示用に整形する。"""
+    normalized = iso_str.replace("Z", "+00:00", 1)
+    dt = datetime.fromisoformat(normalized)
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(_JST).strftime("%Y-%m-%d %H:%M JST")
+
+
+def _format_scheduled_list_for_embed(rows: List[Dict[str, Any]]) -> str:
+    """予約投稿一覧を Embed 用テキストに整形する（長すぎる場合は切り詰め）。"""
+    if not rows:
+        return "なし"
+    lines: List[str] = []
+    for row in rows:
+        post_id = str(row.get("post_id", ""))
+        channel_id = str(row.get("channel_id", ""))
+        sched = str(row.get("scheduled_at", ""))
+        content_preview = (str(row.get("content") or ""))[:120].replace("\n", " ")
+        try:
+            when = _scheduled_at_display_jst(sched)
+        except ValueError:
+            when = sched
+        lines.append(f"`{post_id}` <#{channel_id}> {when}\n　{content_preview}")
+    text = "\n".join(lines)
+    if len(text) > 1024:
+        text = text[:1021] + "..."
+    return text
+
+
+def _format_recurring_list_for_embed(rows: List[Dict[str, Any]]) -> str:
+    """定期投稿一覧を Embed 用テキストに整形する。"""
+    if not rows:
+        return "なし"
+    lines: List[str] = []
+    for row in rows:
+        post_id = str(row.get("post_id", ""))
+        channel_id = str(row.get("channel_id", ""))
+        freq = str(row.get("frequency", ""))
+        post_time = str(row.get("post_time", ""))
+        content_preview = (str(row.get("content") or ""))[:120].replace("\n", " ")
+        lines.append(
+            f"`{post_id}` <#{channel_id}> {freq} @ {post_time} JST\n　{content_preview}"
+        )
+    text = "\n".join(lines)
+    if len(text) > 1024:
+        text = text[:1021] + "..."
+    return text
+
+
+class ChannelSelectDropdown(discord.ui.Select):
+    """候補チャンネルから1件選択するための Select。"""
+
+    def __init__(self, channels: list[discord.abc.GuildChannel]) -> None:
+        options = [
+            discord.SelectOption(label=f"#{ch.name}", value=str(ch.id))
+            for ch in channels[:_SELECT_OPTION_LIMIT]
+        ]
+        super().__init__(
+            placeholder="投稿先チャンネルを選択…",
+            min_values=1,
+            max_values=1,
+            options=options,
+            row=0,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view = self.view
+        if not isinstance(view, (ChannelSelectForScheduleView, ChannelSelectForRecurringView)):
+            await interaction.response.send_message(
+                "内部エラーが発生しました。再度お試しください。",
+                ephemeral=True,
+            )
+            return
+        await view.handle_channel_selected(interaction, self.values[0])
+
+
+class RoleSelectDropdown(discord.ui.Select):
+    """任意ロール複数選択用 Select。"""
+
+    def __init__(self, roles: list[discord.Role]) -> None:
+        options = [
+            discord.SelectOption(label=f"@{role.name}", value=str(role.id))
+            for role in roles[:_SELECT_OPTION_LIMIT]
+        ]
+        super().__init__(
+            placeholder="メンションロールを選択（任意・複数可）…",
+            min_values=0,
+            max_values=len(options),
+            options=options,
+            row=0,
+        )
+
+    async def callback(self, interaction: discord.Interaction) -> None:
+        view = self.view
+        if not isinstance(view, (RoleSelectForScheduleView, RoleSelectForRecurringView)):
+            await interaction.response.send_message(
+                "内部エラーが発生しました。再度お試しください。",
+                ephemeral=True,
+            )
+            return
+        view.selected_role_ids = list(self.values)
+        await interaction.response.send_message(
+            "ロール選択を更新しました。`次へ` を押して進んでください。",
+            ephemeral=True,
+        )
+
+
+class ChannelSelectForScheduleView(discord.ui.View):
+    """予約投稿 Step1: 投稿先チャンネル選択。"""
+
+    def __init__(self, channels: list[discord.abc.GuildChannel]) -> None:
+        super().__init__(timeout=120)
+        self.add_item(ChannelSelectDropdown(channels))
+
+    async def handle_channel_selected(
+        self,
+        interaction: discord.Interaction,
+        channel_id: str,
+    ) -> None:
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message(
+                "サーバー情報を取得できませんでした。",
+                ephemeral=True,
+            )
+            return
+        roles = _list_selectable_roles(guild)
+        if _is_announce_restriction_enabled(guild.id) and not roles:
+            await interaction.response.send_message(
+                "設定済み候補がありません。管理者に連絡してください。",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            "メンションするロールを選択してください（任意・複数可）。",
+            view=RoleSelectForScheduleView(
+                channel_id=channel_id,
+                guild_id=str(guild.id),
+                roles=roles,
+            ),
+            ephemeral=True,
+        )
+
+
+class RoleSelectForScheduleView(discord.ui.View):
+    """予約投稿 Step2: ロール選択（任意）→ 予約 Modal。"""
+
+    def __init__(self, *, channel_id: str, guild_id: str, roles: list[discord.Role]) -> None:
+        super().__init__(timeout=120)
+        self._channel_id = channel_id
+        self._guild_id = guild_id
+        self.selected_role_ids: list[str] = []
+        if roles:
+            self.add_item(RoleSelectDropdown(roles))
+
+    @discord.ui.button(label="次へ", style=discord.ButtonStyle.primary, row=1)
+    async def proceed(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        await interaction.response.send_modal(
+            SchedulePostModal(
+                channel_id=self._channel_id,
+                guild_id=self._guild_id,
+                selected_role_ids=self.selected_role_ids,
+            )
+        )
+
+
+class SchedulePostModal(discord.ui.Modal, title="予約投稿の設定"):
+    """予約投稿 Step2: 日時・本文を入力して登録する。"""
+
+    datetime_input = discord.ui.TextInput(
+        label="投稿日時 (JST)",
+        placeholder="例: 2025-12-25 10:00",
+        min_length=10,
+        max_length=20,
+    )
+    message_input = discord.ui.TextInput(
+        label="メッセージ内容",
+        style=discord.TextStyle.paragraph,
+        max_length=2000,
+    )
+
+    def __init__(
+        self,
+        *,
+        channel_id: str,
+        guild_id: str,
+        selected_role_ids: Optional[list[str]] = None,
+    ) -> None:
+        super().__init__()
+        self._channel_id = channel_id
+        self._guild_id = guild_id
+        self._selected_role_ids = selected_role_ids or []
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        try:
+            scheduled_utc = parse_jst_datetime(str(self.datetime_input.value))
+            if scheduled_utc <= datetime.now(timezone.utc):
+                await interaction.response.send_message(
+                    "過去の日時は指定できません。日時を修正して再度お試しください。",
+                    ephemeral=True,
+                )
+                return
+            original_content = str(self.message_input.value).strip()
+            content = _build_content_with_role_mentions(
+                original_content=original_content,
+                selected_role_ids=self._selected_role_ids,
+            )
+            if not content:
+                await interaction.response.send_message(
+                    "メッセージ内容を入力してください。",
+                    ephemeral=True,
+                )
+                return
+            post_id = await scheduler.add_scheduled_post(
+                channel_id=self._channel_id,
+                content=content,
+                scheduled_at=scheduled_utc,
+                guild_id=self._guild_id,
+                created_by=str(interaction.user.id),
+            )
+            jst_display = scheduled_utc.astimezone(_JST).strftime("%Y-%m-%d %H:%M JST")
+            await interaction.response.send_message(
+                "✅ 予約投稿を登録しました。\n"
+                f"チャンネル: <#{self._channel_id}>\n"
+                f"投稿日時: {jst_display}\n"
+                f"ID: `{post_id}`（キャンセル時に使用）",
+                ephemeral=True,
+            )
+        except ValueError as exc:
+            await interaction.response.send_message(
+                f"入力を確認してください: {exc}\n"
+                "日時は `YYYY-MM-DD HH:MM` 形式（JST）で入力してください。",
+                ephemeral=True,
+            )
+        except Exception:
+            logger.error(
+                "SCHEDULE_POST_MODAL_SUBMIT_FAILED",
+                exc_info=True,
+                extra={"guild_id": self._guild_id, "channel_id": self._channel_id},
+            )
+            await interaction.response.send_message(
+                "エラーが発生しました。しばらくしてから再度お試しください。",
+                ephemeral=True,
+            )
+
+
+class ChannelSelectForRecurringView(discord.ui.View):
+    """定期投稿 Step1: 投稿先チャンネル選択。"""
+
+    def __init__(self, channels: list[discord.abc.GuildChannel]) -> None:
+        super().__init__(timeout=120)
+        self.add_item(ChannelSelectDropdown(channels))
+
+    async def handle_channel_selected(
+        self,
+        interaction: discord.Interaction,
+        channel_id: str,
+    ) -> None:
+        guild = interaction.guild
+        if guild is None:
+            await interaction.response.send_message(
+                "サーバー情報を取得できませんでした。",
+                ephemeral=True,
+            )
+            return
+        roles = _list_selectable_roles(guild)
+        if _is_announce_restriction_enabled(guild.id) and not roles:
+            await interaction.response.send_message(
+                "設定済み候補がありません。管理者に連絡してください。",
+                ephemeral=True,
+            )
+            return
+        await interaction.response.send_message(
+            "メンションするロールを選択してください（任意・複数可）。",
+            view=RoleSelectForRecurringView(
+                channel_id=channel_id,
+                guild_id=str(guild.id),
+                roles=roles,
+            ),
+            ephemeral=True,
+        )
+
+
+class RoleSelectForRecurringView(discord.ui.View):
+    """定期投稿 Step2: ロール選択（任意）→ 頻度選択。"""
+
+    def __init__(self, *, channel_id: str, guild_id: str, roles: list[discord.Role]) -> None:
+        super().__init__(timeout=120)
+        self._channel_id = channel_id
+        self._guild_id = guild_id
+        self.selected_role_ids: list[str] = []
+        if roles:
+            self.add_item(RoleSelectDropdown(roles))
+
+    @discord.ui.button(label="次へ", style=discord.ButtonStyle.primary, row=1)
+    async def proceed(self, interaction: discord.Interaction, _: discord.ui.Button) -> None:
+        view = FrequencySelectView(
+            channel_id=self._channel_id,
+            guild_id=self._guild_id,
+            selected_role_ids=self.selected_role_ids,
+        )
+        await interaction.response.send_message(
+            "投稿頻度を選択してください。",
+            view=view,
+            ephemeral=True,
+        )
+
+
+class FrequencySelectView(discord.ui.View):
+    """定期投稿 Step2: 頻度選択 → 定期 Modal。"""
+
+    def __init__(
+        self,
+        *,
+        channel_id: str,
+        guild_id: str,
+        selected_role_ids: Optional[list[str]] = None,
+    ) -> None:
+        super().__init__(timeout=120)
+        self._channel_id = channel_id
+        self._guild_id = guild_id
+        self._selected_role_ids = selected_role_ids or []
+
+    @discord.ui.select(
+        placeholder="頻度を選択…",
+        options=[
+            discord.SelectOption(label="毎日", value="daily"),
+            discord.SelectOption(label="毎週月曜", value="weekly:MON"),
+            discord.SelectOption(label="毎週水曜", value="weekly:WED"),
+            discord.SelectOption(label="毎週金曜", value="weekly:FRI"),
+            discord.SelectOption(label="毎週土曜", value="weekly:SAT"),
+            discord.SelectOption(label="2時間ごと", value="interval:2h"),
+            discord.SelectOption(label="6時間ごと", value="interval:6h"),
+        ],
+        row=0,
+    )
+    async def select_frequency(
+        self,
+        interaction: discord.Interaction,
+        select: discord.ui.Select,
+    ) -> None:
+        frequency = str(select.values[0])
+        await interaction.response.send_modal(
+            RecurringPostModal(
+                channel_id=self._channel_id,
+                guild_id=self._guild_id,
+                frequency=frequency,
+                selected_role_ids=self._selected_role_ids,
+            )
+        )
+
+
+class RecurringPostModal(discord.ui.Modal, title="定期投稿の設定"):
+    """定期投稿 Step3: 時刻・本文・終了日（任意）を入力して登録する。"""
+
+    time_input = discord.ui.TextInput(
+        label="投稿時刻 (JST, HH:MM)",
+        placeholder="例: 09:00",
+        min_length=4,
+        max_length=5,
+    )
+    message_input = discord.ui.TextInput(
+        label="メッセージ内容",
+        style=discord.TextStyle.paragraph,
+        max_length=2000,
+    )
+    end_date_input = discord.ui.TextInput(
+        label="終了日 (任意, YYYY-MM-DD)",
+        placeholder="空欄で無期限",
+        required=False,
+        max_length=10,
+    )
+
+    def __init__(
+        self,
+        *,
+        channel_id: str,
+        guild_id: str,
+        frequency: str,
+        selected_role_ids: Optional[list[str]] = None,
+    ) -> None:
+        super().__init__()
+        self._channel_id = channel_id
+        self._guild_id = guild_id
+        self._frequency = frequency
+        self._selected_role_ids = selected_role_ids or []
+
+    async def on_submit(self, interaction: discord.Interaction) -> None:
+        try:
+            original_content = str(self.message_input.value).strip()
+            content = _build_content_with_role_mentions(
+                original_content=original_content,
+                selected_role_ids=self._selected_role_ids,
+            )
+            if not content:
+                await interaction.response.send_message(
+                    "メッセージ内容を入力してください。",
+                    ephemeral=True,
+                )
+                return
+            end_raw = str(self.end_date_input.value or "")
+            end_at_utc: Optional[datetime]
+            try:
+                end_at_utc = _parse_optional_end_date_jst_to_utc(end_raw)
+            except ValueError:
+                await interaction.response.send_message(
+                    "終了日は `YYYY-MM-DD` 形式で入力するか、無期限の場合は空欄にしてください。",
+                    ephemeral=True,
+                )
+                return
+            post_id = await scheduler.add_recurring_post(
+                channel_id=self._channel_id,
+                content=content,
+                frequency=self._frequency,
+                post_time=str(self.time_input.value).strip(),
+                guild_id=self._guild_id,
+                created_by=str(interaction.user.id),
+                end_at=end_at_utc,
+            )
+            end_msg = (
+                end_raw.strip() if end_raw.strip() else "無期限"
+            )
+            await interaction.response.send_message(
+                "✅ 定期投稿を登録しました。\n"
+                f"チャンネル: <#{self._channel_id}>\n"
+                f"頻度: `{self._frequency}` / 時刻 (JST): `{self.time_input.value}`\n"
+                f"終了日: {end_msg}\n"
+                f"ID: `{post_id}`",
+                ephemeral=True,
+            )
+        except ValueError as exc:
+            await interaction.response.send_message(
+                f"入力を確認してください: {exc}\n"
+                "時刻は `HH:MM`（JST）で入力してください。",
+                ephemeral=True,
+            )
+        except Exception:
+            logger.error(
+                "RECURRING_POST_MODAL_SUBMIT_FAILED",
+                exc_info=True,
+                extra={
+                    "guild_id": self._guild_id,
+                    "channel_id": self._channel_id,
+                    "frequency": self._frequency,
+                },
+            )
+            await interaction.response.send_message(
+                "エラーが発生しました。しばらくしてから再度お試しください。",
+                ephemeral=True,
+            )
+
+
+post_group = app_commands.Group(
+    name="post",
+    description="予約投稿・定期投稿の登録・一覧・キャンセル",
+)
+
+
+@post_group.command(name="schedule", description="予約投稿をステップ式で登録します")
+async def post_schedule(interaction: discord.Interaction) -> None:
+    if interaction.guild is None:
+        await interaction.response.send_message(
+            "このコマンドはサーバー内でのみ使用できます。",
+            ephemeral=True,
+        )
+        return
+    channels = _list_selectable_text_channels(interaction.guild)
+    if not channels:
+        await interaction.response.send_message(
+            "設定済み候補がありません。管理者に連絡してください。",
+            ephemeral=True,
+        )
+        return
+    view = ChannelSelectForScheduleView(channels)
+    await interaction.response.send_message(
+        "投稿先テキストチャンネルを選択してください。",
+        view=view,
+        ephemeral=True,
+    )
+
+
+@post_group.command(name="recurring", description="定期投稿をステップ式で登録します")
+async def post_recurring(interaction: discord.Interaction) -> None:
+    if interaction.guild is None:
+        await interaction.response.send_message(
+            "このコマンドはサーバー内でのみ使用できます。",
+            ephemeral=True,
+        )
+        return
+    channels = _list_selectable_text_channels(interaction.guild)
+    if not channels:
+        await interaction.response.send_message(
+            "設定済み候補がありません。管理者に連絡してください。",
+            ephemeral=True,
+        )
+        return
+    view = ChannelSelectForRecurringView(channels)
+    await interaction.response.send_message(
+        "投稿先テキストチャンネルを選択してください。",
+        view=view,
+        ephemeral=True,
+    )
+
+
+@post_group.command(name="list", description="このサーバーの予約・定期投稿一覧を表示します")
+async def post_list(interaction: discord.Interaction) -> None:
+    if interaction.guild is None:
+        await interaction.response.send_message(
+            "このコマンドはサーバー内でのみ使用できます。",
+            ephemeral=True,
+        )
+        return
+    try:
+        payload = await scheduler.list_posts(str(interaction.guild.id))
+        scheduled_rows: List[Dict[str, Any]] = list(payload.get("scheduled", []))
+        recurring_rows: List[Dict[str, Any]] = list(payload.get("recurring", []))
+        if not scheduled_rows and not recurring_rows:
+            await interaction.response.send_message(
+                "現在予約・定期投稿はありません。",
+                ephemeral=True,
+            )
+            return
+        embed = discord.Embed(
+            title="予約・定期投稿一覧",
+            color=discord.Color.blurple(),
+        )
+        embed.add_field(
+            name="予約投稿",
+            value=_format_scheduled_list_for_embed(scheduled_rows),
+            inline=False,
+        )
+        embed.add_field(
+            name="定期投稿",
+            value=_format_recurring_list_for_embed(recurring_rows),
+            inline=False,
+        )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+    except Exception:
+        logger.error(
+            "POST_LIST_COMMAND_FAILED",
+            exc_info=True,
+            extra={"guild_id": getattr(interaction.guild, "id", None)},
+        )
+        await interaction.response.send_message(
+            "エラーが発生しました。しばらくしてから再度お試しください。",
+            ephemeral=True,
+        )
+
+
+@post_group.command(name="cancel", description="投稿IDを指定して予約・定期投稿をキャンセルします")
+@app_commands.describe(
+    post_id="/post list で確認した ID を入力してください",
+)
+async def post_cancel(interaction: discord.Interaction, post_id: str) -> None:
+    if interaction.guild is None:
+        await interaction.response.send_message(
+            "このコマンドはサーバー内でのみ使用できます。",
+            ephemeral=True,
+        )
+        return
+    try:
+        ok = await scheduler.cancel_post(post_id.strip())
+        if ok:
+            await interaction.response.send_message(
+                f"キャンセルしました: `{post_id.strip()}`",
+                ephemeral=True,
+            )
+        else:
+            await interaction.response.send_message(
+                f"該当する投稿が見つからないか、すでに取り消済みです: `{post_id.strip()}`",
+                ephemeral=True,
+            )
+    except Exception:
+        logger.error(
+            "POST_CANCEL_COMMAND_FAILED",
+            exc_info=True,
+            extra={"post_id": post_id, "guild_id": getattr(interaction.guild, "id", None)},
+        )
+        await interaction.response.send_message(
+            "エラーが発生しました。しばらくしてから再度お試しください。",
+            ephemeral=True,
+        )
+
+
+bot.tree.add_command(post_group)
 
 
 # ----- エントリポイント -----
