@@ -696,6 +696,15 @@ def _parse_optional_int_env(var_name: str) -> Optional[int]:
         return None
 
 
+def _parse_optional_int_env_candidates(var_names: list[str]) -> Optional[int]:
+    """複数候補の環境変数を順番に参照し、最初の有効値を返す。"""
+    for var_name in var_names:
+        value = _parse_optional_int_env(var_name)
+        if value is not None:
+            return value
+    return None
+
+
 def _parse_id_list_env(var_name: str) -> set[int]:
     """カンマ区切りの ID 一覧を安全にパースする。無効値は warning 後にスキップ。"""
     raw = os.getenv(var_name, "")
@@ -713,67 +722,74 @@ def _parse_id_list_env(var_name: str) -> set[int]:
     return parsed
 
 
-_ANNOUNCE_GUILD_ID = _parse_optional_int_env("ANNOUNCE_GUILD_ID")
-_ANNOUNCE_CHANNEL_IDS = _parse_id_list_env("ANNOUNCE_CHANNEL_IDS")
-_ANNOUNCE_ROLE_IDS = _parse_id_list_env("ANNOUNCE_ROLE_IDS")
+def _parse_id_list_env_candidates(var_names: list[str]) -> set[int]:
+    """複数候補の環境変数を順番に参照し、最初の非空 ID 一覧を返す。"""
+    for var_name in var_names:
+        values = _parse_id_list_env(var_name)
+        if values:
+            return values
+    return set()
+
+
+_ANNOUNCE_GUILD_ID = _parse_optional_int_env_candidates(
+    ["ANNOUNCE_GUILD_ID", "WHITELIST_GUILD_ID"]
+)
+_ANNOUNCE_CHANNEL_IDS = _parse_id_list_env_candidates(
+    ["ANNOUNCE_CHANNEL_IDS", "WHITELIST_CHANNEL_IDS", "ALLOWED_CHANNEL_IDS"]
+)
+_ANNOUNCE_ROLE_IDS = _parse_id_list_env_candidates(
+    ["ANNOUNCE_ROLE_IDS", "WHITELIST_ROLE_IDS", "ALLOWED_ROLE_IDS"]
+)
 
 
 def _is_announce_restriction_enabled(guild_id: int) -> bool:
-    """指定ギルドでのみホワイトリスト制御を有効化する。"""
-    return _ANNOUNCE_GUILD_ID is not None and guild_id == _ANNOUNCE_GUILD_ID
+    """ホワイトリスト制御を有効化すべき guild か判定する。"""
+    if _ANNOUNCE_GUILD_ID is not None:
+        return guild_id == _ANNOUNCE_GUILD_ID
+    return bool(_ANNOUNCE_CHANNEL_IDS or _ANNOUNCE_ROLE_IDS)
 
 
 def _list_selectable_text_channels(guild: discord.Guild) -> list[discord.abc.GuildChannel]:
-    """投稿先候補チャンネル一覧を返す（必要に応じてホワイトリスト適用）。"""
-    if _is_announce_restriction_enabled(guild.id):
-        channels: list[discord.abc.GuildChannel] = []
-        for channel_id in sorted(_ANNOUNCE_CHANNEL_IDS):
-            channel = guild.get_channel(channel_id)
-            if channel is None:
-                logger.warning(
-                    "ANNOUNCE_CHANNEL_IDS contains missing channel_id=%s in guild_id=%s",
-                    channel_id,
-                    guild.id,
-                )
-                continue
-            if channel.type not in _TEXT_CHANNEL_TYPES:
-                logger.warning(
-                    "ANNOUNCE_CHANNEL_IDS channel_id=%s is not text/news in guild_id=%s",
-                    channel_id,
-                    guild.id,
-                )
-                continue
-            channels.append(channel)
-        return channels
-
-    all_channels = [
-        ch
-        for ch in guild.channels
-        if isinstance(ch, discord.abc.GuildChannel) and ch.type in _TEXT_CHANNEL_TYPES
-    ]
-    all_channels.sort(key=lambda c: c.position)
-    return all_channels
+    """投稿先候補チャンネル一覧を返す（常にホワイトリストのみ表示）。"""
+    if not _is_announce_restriction_enabled(guild.id):
+        return []
+    channels: list[discord.abc.GuildChannel] = []
+    for channel_id in sorted(_ANNOUNCE_CHANNEL_IDS):
+        channel = guild.get_channel(channel_id)
+        if channel is None:
+            logger.warning(
+                "ANNOUNCE_CHANNEL_IDS contains missing channel_id=%s in guild_id=%s",
+                channel_id,
+                guild.id,
+            )
+            continue
+        if channel.type not in _TEXT_CHANNEL_TYPES:
+            logger.warning(
+                "ANNOUNCE_CHANNEL_IDS channel_id=%s is not text/news in guild_id=%s",
+                channel_id,
+                guild.id,
+            )
+            continue
+        channels.append(channel)
+    return channels
 
 
 def _list_selectable_roles(guild: discord.Guild) -> list[discord.Role]:
-    """メンション候補ロール一覧を返す（必要に応じてホワイトリスト適用）。"""
-    if _is_announce_restriction_enabled(guild.id):
-        roles: list[discord.Role] = []
-        for role_id in sorted(_ANNOUNCE_ROLE_IDS):
-            role = guild.get_role(role_id)
-            if role is None:
-                logger.warning(
-                    "ANNOUNCE_ROLE_IDS contains missing role_id=%s in guild_id=%s",
-                    role_id,
-                    guild.id,
-                )
-                continue
-            roles.append(role)
-        return roles
-
-    all_roles = [role for role in guild.roles if not role.is_default() and not role.managed]
-    all_roles.sort(key=lambda r: r.position, reverse=True)
-    return all_roles
+    """メンション候補ロール一覧を返す（常にホワイトリストのみ表示）。"""
+    if not _is_announce_restriction_enabled(guild.id):
+        return []
+    roles: list[discord.Role] = []
+    for role_id in sorted(_ANNOUNCE_ROLE_IDS):
+        role = guild.get_role(role_id)
+        if role is None:
+            logger.warning(
+                "ANNOUNCE_ROLE_IDS contains missing role_id=%s in guild_id=%s",
+                role_id,
+                guild.id,
+            )
+            continue
+        roles.append(role)
+    return roles
 
 
 def _build_content_with_role_mentions(original_content: str, selected_role_ids: list[str]) -> str:
@@ -932,12 +948,6 @@ class ChannelSelectForScheduleView(discord.ui.View):
             )
             return
         roles = _list_selectable_roles(guild)
-        if _is_announce_restriction_enabled(guild.id) and not roles:
-            await interaction.response.send_message(
-                "設定済み候補がありません。管理者に連絡してください。",
-                ephemeral=True,
-            )
-            return
         await interaction.response.send_message(
             "メンションするロールを選択してください（任意・複数可）。",
             view=RoleSelectForScheduleView(
@@ -1071,12 +1081,6 @@ class ChannelSelectForRecurringView(discord.ui.View):
             )
             return
         roles = _list_selectable_roles(guild)
-        if _is_announce_restriction_enabled(guild.id) and not roles:
-            await interaction.response.send_message(
-                "設定済み候補がありません。管理者に連絡してください。",
-                ephemeral=True,
-            )
-            return
         await interaction.response.send_message(
             "メンションするロールを選択してください（任意・複数可）。",
             view=RoleSelectForRecurringView(
@@ -1262,8 +1266,44 @@ post_group = app_commands.Group(
     description="予約投稿・定期投稿の登録・一覧・キャンセル",
 )
 
+@post_group.error
+async def post_group_error(
+    interaction: discord.Interaction,
+    error: app_commands.AppCommandError,
+) -> None:
+    """
+    /post グループ内の app command エラーをハンドリング。
+
+    - 権限不足（CheckFailure）の場合はユーザーにメッセージを出さない（ephemeral defer）。
+    - その他はログ出し＋ephemeral で簡易メッセージを返す。
+    """
+    if isinstance(error, app_commands.CheckFailure):
+        if interaction.response.is_done():
+            return
+        # 「Interaction failed」を出さないため、必ず acknowledgement だけ行う。
+        await interaction.response.defer(ephemeral=True)
+        return
+
+    logger.error(
+        "POST_GROUP_APP_COMMAND_ERROR",
+        exc_info=True,
+        extra={
+            "guild_id": getattr(interaction.guild, "id", None),
+            "user_id": getattr(getattr(interaction, "user", None), "id", None),
+            "error_type": type(error).__name__,
+        },
+    )
+
+    if interaction.response.is_done():
+        return
+    await interaction.response.send_message(
+        "エラーが発生しました。しばらくしてから再度お試しください。",
+        ephemeral=True,
+    )
+
 
 @post_group.command(name="schedule", description="予約投稿をステップ式で登録します")
+@app_commands.checks.has_permissions(administrator=True)
 async def post_schedule(interaction: discord.Interaction) -> None:
     if interaction.guild is None:
         await interaction.response.send_message(
@@ -1287,6 +1327,7 @@ async def post_schedule(interaction: discord.Interaction) -> None:
 
 
 @post_group.command(name="recurring", description="定期投稿をステップ式で登録します")
+@app_commands.checks.has_permissions(administrator=True)
 async def post_recurring(interaction: discord.Interaction) -> None:
     if interaction.guild is None:
         await interaction.response.send_message(
@@ -1310,6 +1351,7 @@ async def post_recurring(interaction: discord.Interaction) -> None:
 
 
 @post_group.command(name="list", description="このサーバーの予約・定期投稿一覧を表示します")
+@app_commands.checks.has_permissions(administrator=True)
 async def post_list(interaction: discord.Interaction) -> None:
     if interaction.guild is None:
         await interaction.response.send_message(
@@ -1355,6 +1397,7 @@ async def post_list(interaction: discord.Interaction) -> None:
 
 
 @post_group.command(name="cancel", description="投稿IDを指定して予約・定期投稿をキャンセルします")
+@app_commands.checks.has_permissions(administrator=True)
 @app_commands.describe(
     post_id="/post list で確認した ID を入力してください",
 )
