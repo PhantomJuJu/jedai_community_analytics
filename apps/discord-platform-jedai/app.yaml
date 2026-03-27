@@ -3,7 +3,7 @@ command:
   - build/server.mjs
 env:
   - name: DATABRICKS_WAREHOUSE_ID
-    valueFrom: sql-warehouse
+    value: "565980e7a3a29a1b"
   - name: FOUNDATION_MODEL_ENDPOINT
     value: databricks-meta-llama-3-3-70b-instruct
   - name: MODEL_TEMPERATURE

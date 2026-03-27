@@ -57,16 +57,26 @@ export function AnnouncementPanel() {
   }
 
   return (
-    <Card className="max-w-3xl">
+    <Card className="rounded-xl border border-white/[0.07] bg-[#1a1b2e]">
       <CardHeader>
-        <CardTitle>イベント告知ジェネレータ</CardTitle>
-        <CardDescription>
-          Notebook `01_few_shot_discord_event_announcement` と同じハイパーパラメータで `ai_query` を実行します。
+        <CardTitle className="text-base font-semibold text-[#f0f0ff]">
+          イベント告知ジェネレータ
+        </CardTitle>
+        <CardDescription className="text-sm text-[#9898b8]">
+          Notebook{" "}
+          <code className="rounded bg-white/[0.06] px-1 py-0.5 font-mono text-xs text-[#9898b8]">
+            01_few_shot_discord_event_announcement
+          </code>{" "}
+          と同じハイパーパラメータで{" "}
+          <code className="rounded bg-white/[0.06] px-1 py-0.5 font-mono text-xs text-[#9898b8]">
+            ai_query
+          </code>{" "}
+          を実行します。
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-6">
-          <div className="grid gap-4 sm:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-2">
             <Field label="Tone">
               <Select value={tone} onValueChange={setTone}>
                 <SelectTrigger>
@@ -152,22 +162,38 @@ export function AnnouncementPanel() {
               </Select>
             </Field>
           </div>
+
           <div className="space-y-2">
-            <Label htmlFor="user_request">リクエスト</Label>
+            <Label
+              htmlFor="user_request"
+              className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]"
+            >
+              リクエスト
+            </Label>
             <Textarea
               id="user_request"
               value={user_request}
               onChange={(ev) => setUserRequest(ev.target.value)}
               rows={4}
+              className="border-white/[0.07] bg-[#12121e] text-[#f0f0ff] placeholder:text-[#5a5a7a] focus-visible:ring-[#7c5cd6]/50"
             />
           </div>
-          <Button type="submit" disabled={pending}>
+
+          <Button
+            type="submit"
+            disabled={pending}
+            className="bg-[#7c5cd6] text-white hover:bg-[#9b7ee8] disabled:opacity-50"
+          >
             {pending ? "生成中…" : "生成"}
           </Button>
         </form>
-        {error ? <p className="mt-4 text-sm text-destructive">{error}</p> : null}
+
+        {error ? (
+          <p className="mt-4 text-sm text-red-400">{error}</p>
+        ) : null}
+
         {result !== null ? (
-          <pre className="mt-6 whitespace-pre-wrap rounded-md border bg-muted/40 p-4 text-sm leading-relaxed">
+          <pre className="mt-6 whitespace-pre-wrap rounded-lg border border-white/[0.07] bg-[#0f0f1a] p-5 font-mono text-sm leading-relaxed text-[#f0f0ff]">
             {result}
           </pre>
         ) : null}
@@ -179,7 +205,9 @@ export function AnnouncementPanel() {
 function Field({ label, children }: { label: string; children: React.ReactNode }) {
   return (
     <div className="space-y-2">
-      <Label>{label}</Label>
+      <Label className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
+        {label}
+      </Label>
       {children}
     </div>
   );

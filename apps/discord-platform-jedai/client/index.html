@@ -3,7 +3,102 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>JEDAI Discord platform</title>
+    <title>JEDAI Discord Analytics</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;0,9..40,700;1,9..40,400&family=Noto+Sans+JP:wght@400;500;700&family=JetBrains+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <style>
+      :root {
+        --background: 240 22% 9%;
+        --foreground: 240 100% 98%;
+        --card: 238 28% 14%;
+        --card-foreground: 240 100% 98%;
+        --popover: 238 28% 16%;
+        --popover-foreground: 240 100% 98%;
+        --border: 240 20% 20%;
+        --input: 240 20% 18%;
+        --primary: 262 63% 59%;
+        --primary-foreground: 0 0% 100%;
+        --secondary: 238 22% 18%;
+        --secondary-foreground: 240 100% 98%;
+        --accent: 238 22% 18%;
+        --accent-foreground: 240 100% 98%;
+        --muted: 238 22% 16%;
+        --muted-foreground: 240 13% 60%;
+        --destructive: 0 72% 58%;
+        --destructive-foreground: 0 0% 100%;
+        --radius: 0.75rem;
+      }
+
+      html,
+      body,
+      #root {
+        min-height: 100%;
+      }
+
+      body {
+        margin: 0;
+        font-family: "DM Sans", "Noto Sans JP", sans-serif;
+        background: #12121e;
+        color: hsl(var(--foreground));
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+      }
+
+      h1,
+      h2,
+      h3,
+      h4,
+      h5,
+      h6 {
+        font-family: "DM Sans", "Noto Sans JP", sans-serif;
+        font-weight: 600;
+        letter-spacing: -0.01em;
+      }
+
+      pre,
+      code {
+        font-family: "JetBrains Mono", monospace;
+      }
+
+      .chart-readable .recharts-cartesian-axis-tick-value,
+      .chart-readable .recharts-legend-item-text,
+      .chart-readable .recharts-label,
+      .chart-readable .recharts-text,
+      .chart-readable .recharts-tooltip-label,
+      .chart-readable .recharts-tooltip-item {
+        fill: #f0f0ff !important;
+        color: #f0f0ff !important;
+      }
+
+      .chart-readable .recharts-cartesian-grid line {
+        stroke: rgba(255, 255, 255, 0.14) !important;
+      }
+
+      .chart-readable .recharts-xAxis .recharts-cartesian-axis-line,
+      .chart-readable .recharts-yAxis .recharts-cartesian-axis-line,
+      .chart-readable .recharts-xAxis .recharts-cartesian-axis-tick line,
+      .chart-readable .recharts-yAxis .recharts-cartesian-axis-tick line {
+        stroke: rgba(255, 255, 255, 0.35) !important;
+      }
+
+      .chart-readable.chart-line-strong .recharts-line-curve {
+        stroke-width: 3px !important;
+      }
+
+      .chart-readable.chart-line-strong .recharts-dot circle {
+        r: 2.5;
+        stroke-width: 1.2px;
+      }
+
+      .chart-readable.chart-bar-strong .recharts-bar-rectangle path {
+        stroke: rgba(255, 255, 255, 0.18) !important;
+        stroke-width: 0.8px !important;
+      }
+    </style>
   </head>
   <body>
     <div id="root"></div>
