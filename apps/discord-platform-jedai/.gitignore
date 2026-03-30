@@ -1,0 +1,8 @@
+node_modules/
+build/
+client/dist/
+.env
+.smoke-test/
+playwright-report/
+test-results/
+*.log

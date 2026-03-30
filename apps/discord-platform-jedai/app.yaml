@@ -1,0 +1,12 @@
+command:
+  - node
+  - build/server.mjs
+env:
+  - name: DATABRICKS_WAREHOUSE_ID
+    value: "565980e7a3a29a1b"
+  - name: FOUNDATION_MODEL_ENDPOINT
+    value: databricks-meta-llama-3-3-70b-instruct
+  - name: MODEL_TEMPERATURE
+    value: "0.3"
+  - name: MODEL_MAX_TOKENS
+    value: "2048"
