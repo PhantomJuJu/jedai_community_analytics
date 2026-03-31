@@ -9,7 +9,6 @@ import {
   SelectValue,
 } from "@databricks/appkit-ui/react";
 import { Textarea } from "@databricks/appkit-ui/react";
-import { trpc } from "./trpcClient.js";
 import { useState, type FormEvent } from "react";
 
 const TONE = ["真面目", "おふざけ", "カジュアル"] as const;
@@ -39,16 +38,34 @@ export function AnnouncementPanel() {
     setError(null);
     setResult(null);
     try {
-      const out = await trpc.generateAnnouncement.mutate({
-        tone,
-        length,
-        formality,
-        emoji_density,
-        structure,
-        cta_strength,
-        user_request,
+      const response = await fetch("/api/announcement/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tone,
+          length,
+          formality,
+          emoji_density,
+          structure,
+          cta_strength,
+          user_request,
+        }),
       });
-      setResult(out.text ?? "");
+      let payload: { text?: string; error?: string } = {};
+      try {
+        payload = (await response.json()) as {
+          text?: string;
+          error?: string;
+        };
+      } catch {
+        // AppKit/Express sometimes returns HTML error pages; surface the raw body.
+        const fallbackText = await response.text().catch(() => "");
+        payload = { error: fallbackText || "Non-JSON response from server" };
+      }
+      if (!response.ok) {
+        throw new Error(payload.error ?? `Request failed (${response.status})`);
+      }
+      setResult(payload.text ?? "");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
