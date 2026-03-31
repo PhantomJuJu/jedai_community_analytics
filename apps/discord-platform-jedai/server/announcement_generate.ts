@@ -4,12 +4,12 @@ import { z } from "zod";
 import { buildFullPrompt, type AnnouncementInput } from "./build_prompt.js";
 import { buildAiQueryStatement, runWarehouseStatement } from "./execute_ai_query.js";
 
-function readContextFacts(): string | undefined {
+function readContextFactsFromEnv(): string | undefined {
   const v = process.env.EVENT_CONTEXT_FOR_REQUEST?.trim();
   return v && v.length > 0 ? v : undefined;
 }
 
-export const announcementInputSchema: z.ZodType<AnnouncementInput> = z.object({
+const announcementCoreSchema = z.object({
   tone: z.string().min(1),
   length: z.string().min(1),
   formality: z.string().min(1),
@@ -17,10 +17,17 @@ export const announcementInputSchema: z.ZodType<AnnouncementInput> = z.object({
   structure: z.string().min(1),
   cta_strength: z.string().min(1),
   user_request: z.string().min(1),
+}) satisfies z.ZodType<AnnouncementInput>;
+
+/** POST body: hyperparameters + user_request + optional context (notebook-style [Context facts]). */
+export const announcementInputSchema = announcementCoreSchema.extend({
+  context_for_request: z.string().optional(),
 });
 
+export type AnnouncementGenerateBody = z.infer<typeof announcementInputSchema>;
+
 /** Runs the same ai_query path as the few-shot notebook. */
-export async function generateAnnouncementText(input: AnnouncementInput): Promise<string> {
+export async function generateAnnouncementText(input: AnnouncementGenerateBody): Promise<string> {
   const warehouseId = process.env.DATABRICKS_WAREHOUSE_ID;
   if (!warehouseId) {
     throw new Error("DATABRICKS_WAREHOUSE_ID is not set");
@@ -31,7 +38,13 @@ export async function generateAnnouncementText(input: AnnouncementInput): Promis
   const temperature = Number(process.env.MODEL_TEMPERATURE ?? 0.3);
   const maxTokens = Number(process.env.MODEL_MAX_TOKENS ?? 2048);
 
-  const fullPrompt = buildFullPrompt(input, readContextFacts());
+  const { context_for_request, ...core } = input;
+  const contextFacts =
+    context_for_request !== undefined && context_for_request.trim().length > 0
+      ? context_for_request.trim()
+      : readContextFactsFromEnv();
+
+  const fullPrompt = buildFullPrompt(core, contextFacts);
   const sqlText = buildAiQueryStatement(
     foundationEndpoint,
     fullPrompt,
