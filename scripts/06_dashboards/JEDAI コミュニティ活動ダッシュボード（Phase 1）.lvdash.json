@@ -53,6 +53,55 @@
           "expression": "`voice_duration_seconds_aggregated` / 3600"
         }
       ]
+    },
+    {
+      "name": "8f1a2b3c",
+      "displayName": "voice_churn_risk",
+      "queryLines": [
+        "SELECT user_name, last_voice_session_date, DATEDIFF(CURRENT_DATE(), last_voice_session_date) AS days_since_last_voice, session_count_aggregated, voice_duration_seconds_aggregated / 3600.0 AS voice_hours_total, CASE WHEN DATEDIFF(CURRENT_DATE(), last_voice_session_date) > 30 THEN 100 WHEN DATEDIFF(CURRENT_DATE(), last_voice_session_date) > 14 THEN 75 WHEN DATEDIFF(CURRENT_DATE(), last_voice_session_date) > 7 THEN 40 ELSE 10 END AS churn_risk_score, CASE WHEN DATEDIFF(CURRENT_DATE(), last_voice_session_date) > 30 THEN '離脱済み' WHEN DATEDIFF(CURRENT_DATE(), last_voice_session_date) > 14 THEN '高' WHEN DATEDIFF(CURRENT_DATE(), last_voice_session_date) > 7 THEN '要注意' ELSE '活発' END AS churn_risk_level FROM kazuki_jedai.gold.user_voice_summary WHERE session_count_aggregated >= 2 ORDER BY churn_risk_score DESC, days_since_last_voice DESC LIMIT 30"
+      ]
+    },
+    {
+      "name": "8f2b3c4d",
+      "displayName": "voice_weekly_kpi",
+      "queryLines": [
+        "WITH windows AS ( SELECT SUM(CASE WHEN activity_date >= DATE_SUB(CURRENT_DATE(), 6) AND activity_date <= CURRENT_DATE() THEN voice_duration_seconds_aggregated ELSE 0 END) / 3600.0 AS this_week_voice_hours, SUM(CASE WHEN activity_date >= DATE_SUB(CURRENT_DATE(), 13) AND activity_date <= DATE_SUB(CURRENT_DATE(), 7) THEN voice_duration_seconds_aggregated ELSE 0 END) / 3600.0 AS last_week_voice_hours FROM kazuki_jedai.gold.activity_daily ), rates AS ( SELECT this_week_voice_hours, last_week_voice_hours, CASE WHEN last_week_voice_hours IS NULL OR last_week_voice_hours = 0 THEN NULL ELSE (this_week_voice_hours - last_week_voice_hours) / last_week_voice_hours * 100 END AS voice_growth_rate_pct FROM windows ) SELECT this_week_voice_hours, last_week_voice_hours, voice_growth_rate_pct, CASE WHEN voice_growth_rate_pct IS NULL THEN 'GREEN' WHEN voice_growth_rate_pct < -15 THEN 'RED' WHEN voice_growth_rate_pct < 0 THEN 'YELLOW' ELSE 'GREEN' END AS voice_health_signal FROM rates"
+      ]
+    },
+    {
+      "name": "8f3c4d5e",
+      "displayName": "voice_active_timeslots",
+      "queryLines": [
+        "SELECT guild_id, guild_name, weekday, hour_slot, CASE WHEN weekday = 0 THEN '1. 月' WHEN weekday = 1 THEN '2. 火' WHEN weekday = 2 THEN '3. 水' WHEN weekday = 3 THEN '4. 木' WHEN weekday = 4 THEN '5. 金' WHEN weekday = 5 THEN '6. 土' WHEN weekday = 6 THEN '7. 日' ELSE CAST(weekday AS STRING) END AS weekday_display, message_count_aggregated, voice_duration_seconds_aggregated, voice_duration_seconds_aggregated / 3600.0 AS voice_duration_hours, ( 0.9 * ( voice_duration_seconds_aggregated / NULLIF(MAX(voice_duration_seconds_aggregated) OVER (PARTITION BY guild_id), 0) ) + 0.1 * ( message_count_aggregated / NULLIF(MAX(message_count_aggregated) OVER (PARTITION BY guild_id), 0) ) ) AS voice_dominant_score, RANK() OVER ( PARTITION BY guild_id ORDER BY voice_duration_seconds_aggregated DESC ) AS voice_slot_rank FROM kazuki_jedai.gold.activity_by_weekday_hour"
+      ]
+    },
+    {
+      "name": "8f4d5e6f",
+      "displayName": "voice_session_segment",
+      "queryLines": [
+        "SELECT user_name, user_id, avg_session_duration_seconds_aggregated / 60.0 AS avg_session_minutes, active_week_count_aggregated AS active_weeks, session_count_aggregated, voice_duration_seconds_aggregated / 3600.0 AS voice_hours_total FROM kazuki_jedai.gold.user_voice_summary WHERE session_count_aggregated >= 2"
+      ]
+    },
+    {
+      "name": "8f5e6f7a",
+      "displayName": "voice_ltv_ranking",
+      "queryLines": [
+        "SELECT user_name, user_id, voice_duration_seconds_aggregated / 3600.0 AS voice_hours_total, active_week_count_aggregated, tenure_weeks_aggregated, (voice_duration_seconds_aggregated / 3600.0) * ( active_week_count_aggregated / NULLIF(tenure_weeks_aggregated, 0) ) AS voice_ltv_score FROM kazuki_jedai.gold.user_voice_summary WHERE tenure_weeks_aggregated >= 2 ORDER BY voice_ltv_score DESC NULLS LAST LIMIT 20"
+      ]
+    },
+    {
+      "name": "8f6f7a8b",
+      "displayName": "voice_channel_hhi",
+      "queryLines": [
+        "WITH totals AS ( SELECT SUM(voice_duration_seconds_aggregated) AS total_voice_sec FROM kazuki_jedai.gold.channel_activity WHERE voice_duration_seconds_aggregated > 0 ), shares AS ( SELECT guild_id, guild_name, channel_id, channel_name, category_name, voice_duration_seconds_aggregated, voice_duration_seconds_aggregated / NULLIF((SELECT total_voice_sec FROM totals), 0) AS voice_share FROM kazuki_jedai.gold.channel_activity WHERE voice_duration_seconds_aggregated > 0 ), hhi_calc AS ( SELECT SUM(POWER(voice_share, 2)) * 10000 AS voice_channel_hhi FROM shares ) SELECT s.guild_id, s.guild_name, s.channel_name, s.category_name, s.voice_duration_seconds_aggregated / 3600.0 AS voice_hours, s.voice_share * 100 AS voice_share_pct, h.voice_channel_hhi, CASE WHEN h.voice_channel_hhi < 1500 THEN '健全（分散）' WHEN h.voice_channel_hhi < 2500 THEN '要注意（中程度集中）' ELSE '危険（高集中）' END AS hhi_status FROM shares s CROSS JOIN hhi_calc h ORDER BY s.voice_share DESC"
+      ]
+    },
+    {
+      "name": "8f708b9c",
+      "displayName": "voice_weekday_summary",
+      "queryLines": [
+        "WITH agg AS ( SELECT weekday, SUM(voice_duration_seconds_aggregated) / 3600.0 AS daily_voice_hours FROM kazuki_jedai.gold.activity_by_weekday_hour GROUP BY weekday ), mx AS ( SELECT MAX(daily_voice_hours) AS max_voice_hours FROM agg ) SELECT a.weekday, CASE WHEN a.weekday = 0 THEN '1. 月' WHEN a.weekday = 1 THEN '2. 火' WHEN a.weekday = 2 THEN '3. 水' WHEN a.weekday = 3 THEN '4. 木' WHEN a.weekday = 4 THEN '5. 金' WHEN a.weekday = 5 THEN '6. 土' WHEN a.weekday = 6 THEN '7. 日' ELSE CAST(a.weekday AS STRING) END AS weekday_label, a.daily_voice_hours, a.daily_voice_hours / NULLIF(m.max_voice_hours, 0) AS voice_day_score, RANK() OVER (ORDER BY a.daily_voice_hours ASC) AS low_voice_rank FROM agg a CROSS JOIN mx m ORDER BY a.weekday"
+      ]
     }
   ],
   "pages": [
@@ -959,6 +1008,719 @@
       "layoutVersion": "GRID_V1"
     },
     {
+      "name": "c9d0e1f2",
+      "displayName": "ボイス分析",
+      "layout": [
+        {
+          "widget": {
+            "name": "voice_page_title",
+            "multilineTextboxSpec": {
+              "lines": [
+                "## ボイス分析（Phase 1）",
+                "仕様ソース: apps/discord-platform-jedai/config/queries/voice_*.sql （カタログ kazuki_jedai.gold）。",
+                "README: Lakehouse にレーダー無しのため W7 は棒グラフ。scatter 非対応時は W4 を table に差し替え。"
+              ]
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 0,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "voice_w2_weekly_kpi",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f2b3c4d",
+                  "fields": [
+                    {
+                      "name": "this_week_voice_hours",
+                      "expression": "`this_week_voice_hours`"
+                    },
+                    {
+                      "name": "last_week_voice_hours",
+                      "expression": "`last_week_voice_hours`"
+                    },
+                    {
+                      "name": "voice_growth_rate_pct",
+                      "expression": "`voice_growth_rate_pct`"
+                    },
+                    {
+                      "name": "voice_health_signal",
+                      "expression": "`voice_health_signal`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "W2 今週/前週ボイス・成長率・シグナル（voice_weekly_kpi）",
+                "showTitle": true
+              },
+              "rowsPerPage": 10,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "this_week_voice_hours",
+                    "displayName": "今週ボイス（時間）"
+                  },
+                  {
+                    "fieldName": "last_week_voice_hours",
+                    "displayName": "前週ボイス（時間）"
+                  },
+                  {
+                    "fieldName": "voice_growth_rate_pct",
+                    "displayName": "成長率（%）"
+                  },
+                  {
+                    "fieldName": "voice_health_signal",
+                    "displayName": "シグナル"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 2,
+            "width": 12,
+            "height": 2
+          }
+        },
+        {
+          "widget": {
+            "name": "voice_w1_churn_risk",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f1a2b3c",
+                  "fields": [
+                    {
+                      "name": "user_name",
+                      "expression": "`user_name`"
+                    },
+                    {
+                      "name": "last_voice_session_date",
+                      "expression": "`last_voice_session_date`"
+                    },
+                    {
+                      "name": "days_since_last_voice",
+                      "expression": "`days_since_last_voice`"
+                    },
+                    {
+                      "name": "session_count_aggregated",
+                      "expression": "`session_count_aggregated`"
+                    },
+                    {
+                      "name": "voice_hours_total",
+                      "expression": "`voice_hours_total`"
+                    },
+                    {
+                      "name": "churn_risk_score",
+                      "expression": "`churn_risk_score`"
+                    },
+                    {
+                      "name": "churn_risk_level",
+                      "expression": "`churn_risk_level`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "W1 ボイス離脱リスク（voice_churn_risk）",
+                "showTitle": true
+              },
+              "rowsPerPage": 30,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "user_name",
+                    "displayName": "ユーザー"
+                  },
+                  {
+                    "fieldName": "last_voice_session_date",
+                    "displayName": "最終ボイス日"
+                  },
+                  {
+                    "fieldName": "days_since_last_voice",
+                    "displayName": "経過日数"
+                  },
+                  {
+                    "fieldName": "session_count_aggregated",
+                    "displayName": "セッション数"
+                  },
+                  {
+                    "fieldName": "voice_hours_total",
+                    "displayName": "累計ボイス（時間）"
+                  },
+                  {
+                    "fieldName": "churn_risk_score",
+                    "displayName": "リスクスコア"
+                  },
+                  {
+                    "fieldName": "churn_risk_level",
+                    "displayName": "リスクレベル"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 4,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "voice_w3_active_timeslots",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f3c4d5e",
+                  "fields": [
+                    {
+                      "name": "sum(voice_dominant_score)",
+                      "expression": "SUM(`voice_dominant_score`)"
+                    },
+                    {
+                      "name": "hour_slot",
+                      "expression": "`hour_slot`"
+                    },
+                    {
+                      "name": "weekday_display",
+                      "expression": "`weekday_display`"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "W3 曜日×時間帯 voice_dominant_score（voice_active_timeslots）",
+                "showTitle": true
+              },
+              "widgetType": "heatmap",
+              "encodings": {
+                "x": {
+                  "fieldName": "hour_slot",
+                  "displayName": "時間帯",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "weekday_display",
+                  "displayName": "曜日",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "1. 月",
+                        "2. 火",
+                        "3. 水",
+                        "4. 木",
+                        "5. 金",
+                        "6. 土",
+                        "7. 日"
+                      ]
+                    }
+                  }
+                },
+                "color": {
+                  "fieldName": "sum(voice_dominant_score)",
+                  "displayName": "スコア合計",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 10,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "voice_w4_session_scatter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f4d5e6f",
+                  "fields": [
+                    {
+                      "name": "user_name",
+                      "expression": "`user_name`"
+                    },
+                    {
+                      "name": "avg_session_minutes",
+                      "expression": "`avg_session_minutes`"
+                    },
+                    {
+                      "name": "active_weeks",
+                      "expression": "`active_weeks`"
+                    },
+                    {
+                      "name": "voice_hours_total",
+                      "expression": "`voice_hours_total`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "W4 平均セッション×アクティブ週（voice_session_segment）",
+                "showTitle": true
+              },
+              "widgetType": "scatter",
+              "encodings": {
+                "x": {
+                  "fieldName": "avg_session_minutes",
+                  "displayName": "平均セッション（分）",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "active_weeks",
+                  "displayName": "アクティブ週数",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "color": {
+                  "fieldName": "user_name",
+                  "displayName": "ユーザー",
+                  "scale": {
+                    "type": "categorical"
+                  },
+                  "legend": {
+                    "position": "bottom"
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 16,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "voice_w5_ltv_ranking",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f5e6f7a",
+                  "fields": [
+                    {
+                      "name": "user_name",
+                      "expression": "`user_name`"
+                    },
+                    {
+                      "name": "voice_hours_total",
+                      "expression": "`voice_hours_total`"
+                    },
+                    {
+                      "name": "active_week_count_aggregated",
+                      "expression": "`active_week_count_aggregated`"
+                    },
+                    {
+                      "name": "tenure_weeks_aggregated",
+                      "expression": "`tenure_weeks_aggregated`"
+                    },
+                    {
+                      "name": "voice_ltv_score",
+                      "expression": "`voice_ltv_score`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "W5 ボイス LTV ランキング（voice_ltv_ranking）",
+                "showTitle": true
+              },
+              "rowsPerPage": 25,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "user_name",
+                    "displayName": "ユーザー"
+                  },
+                  {
+                    "fieldName": "voice_ltv_score",
+                    "displayName": "LTVスコア"
+                  },
+                  {
+                    "fieldName": "voice_hours_total",
+                    "displayName": "累計ボイス（時間）"
+                  },
+                  {
+                    "fieldName": "active_week_count_aggregated",
+                    "displayName": "アクティブ週数"
+                  },
+                  {
+                    "fieldName": "tenure_weeks_aggregated",
+                    "displayName": "在籍週数"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 22,
+            "width": 12,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "voice_w6_channel_share_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f6f7a8b",
+                  "fields": [
+                    {
+                      "name": "channel_name",
+                      "expression": "`channel_name`"
+                    },
+                    {
+                      "name": "voice_share_pct",
+                      "expression": "`voice_share_pct`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "W6 チャンネル別シェア（%）（voice_channel_hhi）",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "voice_share_pct",
+                  "displayName": "シェア（%）",
+                  "scale": {
+                    "type": "quantitative"
+                  }
+                },
+                "y": {
+                  "fieldName": "channel_name",
+                  "displayName": "チャンネル",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "color": {
+                  "fieldName": "channel_name",
+                  "displayName": "チャンネル",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 28,
+            "width": 8,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "voice_w6_hhi_counter",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f6f7a8b",
+                  "fields": [
+                    {
+                      "name": "max(voice_channel_hhi)",
+                      "expression": "MAX(`voice_channel_hhi`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "HHI（×10000）",
+                "showTitle": true
+              },
+              "widgetType": "counter",
+              "encodings": {
+                "value": {
+                  "fieldName": "max(voice_channel_hhi)",
+                  "displayName": "voice_channel_hhi",
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 0
+                    },
+                    "abbreviation": "none"
+                  }
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 28,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "voice_w6_hhi_status",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f6f7a8b",
+                  "fields": [
+                    {
+                      "name": "max(hhi_status)",
+                      "expression": "MAX(`hhi_status`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "HHI ステータス",
+                "showTitle": true
+              },
+              "rowsPerPage": 5,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "max(hhi_status)",
+                    "displayName": "判定"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 31,
+            "width": 4,
+            "height": 3
+          }
+        },
+        {
+          "widget": {
+            "name": "voice_w7_weekday_bar",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f708b9c",
+                  "fields": [
+                    {
+                      "name": "weekday_label",
+                      "expression": "`weekday_label`"
+                    },
+                    {
+                      "name": "daily_voice_hours",
+                      "expression": "`daily_voice_hours`"
+                    },
+                    {
+                      "name": "low_voice_rank",
+                      "expression": "`low_voice_rank`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 3,
+              "frame": {
+                "title": "W7 曜日別ボイス時間（レーダー代替・voice_weekday_summary）",
+                "showTitle": true
+              },
+              "widgetType": "bar",
+              "encodings": {
+                "x": {
+                  "fieldName": "weekday_label",
+                  "displayName": "曜日",
+                  "scale": {
+                    "type": "categorical",
+                    "sort": {
+                      "by": "custom-order",
+                      "orderedValues": [
+                        "1. 月",
+                        "2. 火",
+                        "3. 水",
+                        "4. 木",
+                        "5. 金",
+                        "6. 土",
+                        "7. 日"
+                      ]
+                    }
+                  }
+                },
+                "y": {
+                  "fieldName": "daily_voice_hours",
+                  "displayName": "ボイス時間（時間/日集計）",
+                  "scale": {
+                    "type": "quantitative"
+                  },
+                  "format": {
+                    "type": "number-plain",
+                    "decimalPlaces": {
+                      "type": "exact",
+                      "places": 2
+                    },
+                    "abbreviation": "none"
+                  }
+                },
+                "color": {
+                  "fieldName": "weekday_label",
+                  "displayName": "曜日",
+                  "scale": {
+                    "type": "categorical"
+                  }
+                },
+                "label": {
+                  "show": true
+                }
+              }
+            }
+          },
+          "position": {
+            "x": 0,
+            "y": 34,
+            "width": 8,
+            "height": 6
+          }
+        },
+        {
+          "widget": {
+            "name": "voice_w7_weekday_rank_table",
+            "queries": [
+              {
+                "name": "main_query",
+                "query": {
+                  "datasetName": "8f708b9c",
+                  "fields": [
+                    {
+                      "name": "weekday_label",
+                      "expression": "`weekday_label`"
+                    },
+                    {
+                      "name": "daily_voice_hours",
+                      "expression": "`daily_voice_hours`"
+                    },
+                    {
+                      "name": "low_voice_rank",
+                      "expression": "`low_voice_rank`"
+                    }
+                  ],
+                  "disaggregated": true
+                }
+              }
+            ],
+            "spec": {
+              "version": 2,
+              "frame": {
+                "title": "W7 低ボイス順位（reference）",
+                "showTitle": true
+              },
+              "rowsPerPage": 10,
+              "widgetType": "table",
+              "encodings": {
+                "columns": [
+                  {
+                    "fieldName": "weekday_label",
+                    "displayName": "曜日"
+                  },
+                  {
+                    "fieldName": "daily_voice_hours",
+                    "displayName": "ボイス（時間）"
+                  },
+                  {
+                    "fieldName": "low_voice_rank",
+                    "displayName": "低ボイス順位"
+                  }
+                ]
+              }
+            }
+          },
+          "position": {
+            "x": 8,
+            "y": 34,
+            "width": 4,
+            "height": 6
+          }
+        }
+      ],
+      "pageType": "PAGE_TYPE_CANVAS",
+      "layoutVersion": "GRID_V1"
+    },
+    {
       "name": "71a9897f",
       "displayName": "Global Filters",
       "layout": [
@@ -1033,6 +1795,40 @@
                   ],
                   "disaggregated": false
                 }
+              },
+              {
+                "name": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f1193010ad8f3c4d5e_guild_name",
+                "query": {
+                  "datasetName": "8f3c4d5e",
+                  "fields": [
+                    {
+                      "name": "guild_name",
+                      "expression": "`guild_name`"
+                    },
+                    {
+                      "name": "guild_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
+              },
+              {
+                "name": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f1193010ae8f6f7a8b_guild_name",
+                "query": {
+                  "datasetName": "8f6f7a8b",
+                  "fields": [
+                    {
+                      "name": "guild_name",
+                      "expression": "`guild_name`"
+                    },
+                    {
+                      "name": "guild_name_associativity",
+                      "expression": "COUNT_IF(`associative_filter_predicate_group`)"
+                    }
+                  ],
+                  "disaggregated": false
+                }
               }
             ],
             "spec": {
@@ -1059,6 +1855,14 @@
                   {
                     "fieldName": "guild_name",
                     "queryName": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f119301168114f8dc7473eb299e721_guild_name"
+                  },
+                  {
+                    "fieldName": "guild_name",
+                    "queryName": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f1193010ad8f3c4d5e_guild_name"
+                  },
+                  {
+                    "fieldName": "guild_name",
+                    "queryName": "dashboards/01f11930029118d69ff3df867ab2b358/datasets/01f1193010ae8f6f7a8b_guild_name"
                   }
                 ]
               }

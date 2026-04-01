@@ -24,6 +24,7 @@ import {
   LineChart as RechartsLineChart,
 } from "recharts";
 import { AnnouncementPanel } from "./AnnouncementPanel.js";
+import { VoiceAnalyticsTab } from "./VoiceAnalytics.js";
 
 type WeekdayHourRow = {
   weekday_display?: string;
@@ -634,6 +635,12 @@ export default function App() {
           >
             告知ジェネレータ
           </TabsTrigger>
+          <TabsTrigger
+            value="voice"
+            className="rounded-none border-b-2 border-transparent px-5 py-2.5 text-sm font-medium text-[#9898b8] transition-colors data-[state=active]:border-[#7c5cd6] data-[state=active]:bg-transparent data-[state=active]:text-[#f0f0ff]"
+          >
+            ボイス分析
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="dashboard" className="space-y-4">
@@ -673,6 +680,10 @@ export default function App() {
 
         <TabsContent value="announcement" className="mt-0">
           <AnnouncementPanel />
+        </TabsContent>
+
+        <TabsContent value="voice" className="space-y-4">
+          <VoiceAnalyticsTab />
         </TabsContent>
       </Tabs>
       </div>
