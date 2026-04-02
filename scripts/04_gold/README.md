@@ -2,7 +2,7 @@
 
 **Author:** Kazuki Date  
 **Contact:** kazuki.date@myteam.com  
-**Date / Last Modified:** 2026-03-06  
+**Date / Last Modified:** 2026-04-01  
 
 ---
 
@@ -15,7 +15,7 @@
 - **Silver スキーマ:** `kazuki_jedai.silver`（定義は `scripts/03_silver/` の DLT を参照）
 - **Gold スキーマ:** `kazuki_jedai.gold`
 
-本フォルダで作成する Gold テーブルは **4 本**で、ダッシュボードの「曜日×時間帯ヒートマップ」「時系列トレンド」「ユーザ別活動」「チャンネル別活動・カテゴリ Exclude」に対応する。
+本フォルダで作成する Gold テーブルは **5 本**で、ダッシュボードの「曜日×時間帯ヒートマップ」「時系列トレンド」「ユーザ別活動」「ユーザ別ボイス要約」「チャンネル別活動・カテゴリ Exclude」に対応する。
 
 ---
 
@@ -28,7 +28,7 @@
 - **ボイスセッションの跨ぎ（曜日×時間帯集計時）:** ボイスは数時間・日をまたぐことが多い。**(weekday, hour_slot)** で集計する場合、セッション全体を `joined_at` の 1 時間に乗せると他時間帯が過少になる。そのため **「その 1 時間のうち何秒（何割）アクティブだったか」を算出し、重なった各 (weekday, hour_slot) に按分してから SUM する**。例: 21:30 参加・22:45 退出なら、21 時台に 30 分ぶん（0.5 時間相当）、22 時台に 45 分ぶん（0.75 時間相当）を配分する。日跨ぎ（例: 23:00〜翌 01:30）も同様に、各時間帯に属する秒数だけを足す。
 - **ボイスセッションの跨ぎ（日次集計時）:** **activity_daily** でも、日をまたいだセッションは **「その日に属する秒数」だけを各 activity_date に配分**する。例: 金曜 23:00 参加・土曜 02:00 退出なら、金曜に 1 時間ぶん、土曜に 2 時間ぶんを配分する。セッション全体を `joined_at` の日（または `session_date`）にだけ乗せない。
 - **voice_duration_seconds_aggregated の型:** 按分ロジックで秒の端数（小数）が発生するため、DDL（`01_create_gold_tables.sql`）では **DOUBLE** に統一する。集計ジョブも DOUBLE で投入すること。
-- **パーティション:** **activity_daily** は **activity_date** でパーティション分割（日付範囲クエリの I/O 削減）。それ以外の 3 本（activity_by_weekday_hour, user_activity, channel_activity）は日付カラムがないためパーティション未指定。将来「集計時点日」等のカラムを追加する場合は PARTITIONED BY の検討を推奨する。
+- **パーティション:** **activity_daily** は **activity_date** でパーティション分割（日付範囲クエリの I/O 削減）。それ以外の 4 本（activity_by_weekday_hour, user_activity, user_voice_summary, channel_activity）は日付を PK としない集計のためパーティション未指定（user_voice_summary は first_voice_session_date 等を保持するがパーティションキーではない）。将来「集計時点日」等のカラムを追加する場合は PARTITIONED BY の検討を推奨する。
 - **DLT パイプライン:** `01_gold_aggregation_dlt.py` は Delta Live Tables で実行する。ソースは **カタログ kazuki_jedai の Silver テーブル**（`kazuki_jedai.silver.message_fact`, `kazuki_jedai.silver.voice_chat_fact`）を 3 レベル名で参照する。ターゲットは `kazuki_jedai.gold`。Full refresh 運用を推奨。
 - **タイムゾーン:** 曜日・時間帯・日付の導出は Spark セッション（クラスタ）のタイムゾーンに依存する。プロジェクト方針（例: UTC）に合わせて設定すること。
 
@@ -218,6 +218,40 @@
   両者を **(guild_id, channel_id, category_id)** で JOIN し、**channel_dim**, **category_dim**, **guild_dim** と JOIN して channel_name, category_name, guild_name を取得する。
 
 **カテゴリ Exclude:** ダッシュボード側で `category_id` または category_name に Filter をかけ、除外したいカテゴリを外して集計・表示する。Gold は guild_id × channel_id × category_id の粒度で保持する。
+
+---
+
+## 5. user_voice_summary
+
+**粒度:** 1 行 = 1 ギルド × 1 ユーザ（ボイスセッションのみに基づく要約）  
+**PK:** (guild_id, user_id)
+
+| 項目 | 内容 |
+|------|------|
+| **役割** | `voice_chat_fact` からセッション数・合計/平均滞在秒・初回・最終参加日・参加があった週数・テナー週等を集計する。 |
+| **実装** | `scripts/04_gold/01_gold_aggregation_dlt.py` の `user_voice_summary`（DLT）。 |
+
+### 元になる Silver テーブル
+
+- **voice_chat_fact**（guild_id, user_id, joined_at, left_at）
+- **user_dim**（user_name）
+- **guild_dim**（guild_name）
+
+### Gold カラム（概要）
+
+| カラム名 | 型（想定） | 意味 |
+|----------|------------|------|
+| guild_id | BIGINT | ギルド ID |
+| guild_name | STRING | ギルド表示名 |
+| user_id | STRING | ユーザ ID |
+| user_name | STRING | ユーザ表示名 |
+| session_count_aggregated | BIGINT | ボイスセッション件数 |
+| voice_duration_seconds_aggregated | DOUBLE | 合計滞在秒 |
+| avg_session_duration_seconds_aggregated | DOUBLE | 平均滞在秒 |
+| first_voice_session_date | DATE | 初回 joined_at 日（パイプライン TZ） |
+| last_voice_session_date | DATE | 最終 joined_at 日 |
+| active_week_count_aggregated | BIGINT | `date_trunc('week', joined_at)` のユニーク数 |
+| tenure_weeks_aggregated | DOUBLE | `greatest(datediff(current_date, first_voice_session_date), 0) / 7.0` |
 
 ---
 

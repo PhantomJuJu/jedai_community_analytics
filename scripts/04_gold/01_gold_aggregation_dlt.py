@@ -3,7 +3,7 @@ Gold 集計 DLT パイプライン: Silver → Gold（曜日×時間帯・日次
 
 Silver スキーマ（kazuki_jedai.silver）の message_fact / voice_chat_fact（いずれも guild_id を持つ）を読み、
 按分ロジック（時間帯按分・日按分）を含む集計を行い、guild_dim / user_dim / channel_dim / category_dim と JOIN して
-guild_name 等の表示名を付与したうえで、Gold スキーマ（kazuki_jedai.gold）に 4 本のテーブルを出力する。Delta Live Tables パイプラインとして実行する。
+guild_name 等の表示名を付与したうえで、Gold スキーマ（kazuki_jedai.gold）に 5 本のテーブルを出力する。Delta Live Tables パイプラインとして実行する。
 
 集計カラムの命名: Data Dictionary に従い、集計値には _aggregated サフィックスを用いる
 （message_count_aggregated, voice_duration_seconds_aggregated）。全テーブルで guild_id を集計キーに含め、Dimension と JOIN して表示名を付与する。
@@ -16,7 +16,7 @@ guild_name 等の表示名を付与したうえで、Gold スキーマ（kazuki_
 
 Author: Kazuki Date
 Contact: kazuki.date@myteam.com
-Date / Last Modified: 2026-03-06
+Date / Last Modified: 2026-04-01
 """
 
 import dlt
@@ -359,6 +359,85 @@ def _build_gold_channel_activity():
 
 
 # ---------------------------------------------------------------------------
+# 5. user_voice_summary（ユーザ別ボイスセッション要約）
+# ---------------------------------------------------------------------------
+
+
+def _transform_voice_sessions_by_user():
+    """
+    voice_chat_fact をユーザ別ボイス要約用に行単位で正規化する。
+
+    前提は _transform_voice_by_user と同様（left_at / joined_at / guild_id）に加え、user_id NOT NULL。
+    left_at は MAX_SESSION_HOURS でキャップし、duration_seconds は秒差の double。
+    """
+    voice = (
+        spark.read.table(f"{SILVER_SCHEMA}.voice_chat_fact")
+        .filter(F.col("left_at").isNotNull())
+        .filter(F.col("left_at") >= F.col("joined_at"))
+        .filter(F.col("guild_id").isNotNull())
+        .filter(F.col("user_id").isNotNull())
+    )
+    voice = voice.withColumn(
+        "left_at",
+        F.least(F.col("left_at"), F.col("joined_at") + F.expr(f"INTERVAL {MAX_SESSION_HOURS} HOURS")),
+    )
+    return voice.withColumn(
+        "duration_seconds",
+        (F.unix_timestamp("left_at") - F.unix_timestamp("joined_at")).cast("double"),
+    )
+
+
+def _build_gold_user_voice_summary():
+    """
+    (guild_id, user_id) ごとのボイスセッション集約とディメンション名を付与する。
+
+    first_voice_session_date / last_voice_session_date は joined_at を SESSION のタイムゾーン
+    （PIPELINE_TIMEZONE; spark.sql.session.timeZone）で to_date した日付の min / max。
+
+    active_week_count_aggregated: joined_at が属する週（date_trunc('week', joined_at)）のユニーク数。
+
+    tenure_weeks_aggregated: 初回ボイス日（first_voice_session_date）からパイプライン実行日
+    （current_date; 同上タイムゾーン）までの暦日差の週換算の下限 0。
+    式: greatest(datediff(current_date, first_voice_session_date), 0) / 7.0（実数週・端数あり）。
+    """
+    sessions = _transform_voice_sessions_by_user()
+    agg = sessions.groupBy("guild_id", "user_id").agg(
+        F.count("*").alias("session_count_aggregated"),
+        F.sum("duration_seconds").alias("voice_duration_seconds_aggregated"),
+        F.avg("duration_seconds").alias("avg_session_duration_seconds_aggregated"),
+        F.min(F.to_date("joined_at")).alias("first_voice_session_date"),
+        F.max(F.to_date("joined_at")).alias("last_voice_session_date"),
+        F.countDistinct(F.date_trunc("week", F.col("joined_at"))).alias("active_week_count_aggregated"),
+    )
+    agg = agg.withColumn(
+        "tenure_weeks_aggregated",
+        (
+            F.greatest(F.datediff(F.current_date(), F.col("first_voice_session_date")), F.lit(0)).cast("double")
+            / F.lit(7.0)
+        ),
+    )
+    user_dim = spark.read.table(f"{SILVER_SCHEMA}.user_dim").select("user_id", "user_name")
+    guild = _get_guild_dim()
+    return (
+        agg.join(user_dim, "user_id", "left")
+        .join(guild, "guild_id", "left")
+        .select(
+            F.col("guild_id").cast("long"),
+            F.col("guild_name").cast("string"),
+            F.col("user_id").cast("string").alias("user_id"),
+            F.col("user_name").cast("string").alias("user_name"),
+            F.col("session_count_aggregated").cast("long"),
+            F.col("voice_duration_seconds_aggregated").cast("double"),
+            F.col("avg_session_duration_seconds_aggregated").cast("double"),
+            F.col("first_voice_session_date").cast("date"),
+            F.col("last_voice_session_date").cast("date"),
+            F.col("active_week_count_aggregated").cast("long"),
+            F.col("tenure_weeks_aggregated").cast("double"),
+        )
+    )
+
+
+# ---------------------------------------------------------------------------
 # DLT テーブル定義（フルリフレッシュ想定：パイプラインで Full refresh を指定）
 # ---------------------------------------------------------------------------
 
@@ -411,3 +490,19 @@ def gold_user_activity():
 @dlt.expect("voice_duration_seconds_aggregated_non_negative", "voice_duration_seconds_aggregated >= 0")
 def gold_channel_activity():
     return _build_gold_channel_activity()
+
+
+@dlt.table(
+    name="user_voice_summary",
+    comment="ギルド×ユーザごとのボイスセッション数・合計/平均滞在秒・初回/最終参加日・稼働週数・テナー週（voice_chat_fact ベース）。",
+)
+@dlt.expect("guild_id_not_null", "guild_id IS NOT NULL")
+@dlt.expect("user_id_not_null", "user_id IS NOT NULL")
+@dlt.expect("session_count_aggregated_gte_1", "session_count_aggregated >= 1")
+@dlt.expect("voice_duration_seconds_aggregated_non_negative", "voice_duration_seconds_aggregated >= 0")
+@dlt.expect(
+    "avg_session_duration_seconds_aggregated_non_negative",
+    "avg_session_duration_seconds_aggregated >= 0",
+)
+def gold_user_voice_summary():
+    return _build_gold_user_voice_summary()

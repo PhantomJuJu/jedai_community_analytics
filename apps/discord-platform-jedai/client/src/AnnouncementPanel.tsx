@@ -9,7 +9,6 @@ import {
   SelectValue,
 } from "@databricks/appkit-ui/react";
 import { Textarea } from "@databricks/appkit-ui/react";
-import { trpc } from "./trpcClient.js";
 import { useState, type FormEvent } from "react";
 
 const TONE = ["真面目", "おふざけ", "カジュアル"] as const;
@@ -29,6 +28,8 @@ export function AnnouncementPanel() {
   const [user_request, setUserRequest] = useState<string>(
     "来週土曜21時の練習会告知を、カジュアルで中くらいの長さ、箇条書き中心で作って",
   );
+  /** Maps to prompt [Context facts]; optional — empty uses server env EVENT_CONTEXT_FOR_REQUEST if set. */
+  const [context_for_request, setContextForRequest] = useState<string>("");
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -39,16 +40,37 @@ export function AnnouncementPanel() {
     setError(null);
     setResult(null);
     try {
-      const out = await trpc.generateAnnouncement.mutate({
-        tone,
-        length,
-        formality,
-        emoji_density,
-        structure,
-        cta_strength,
-        user_request,
+      const response = await fetch("/api/announcement/generate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          tone,
+          length,
+          formality,
+          emoji_density,
+          structure,
+          cta_strength,
+          user_request,
+          ...(context_for_request.trim().length > 0
+            ? { context_for_request: context_for_request.trim() }
+            : {}),
+        }),
       });
-      setResult(out.text ?? "");
+      let payload: { text?: string; error?: string } = {};
+      try {
+        payload = (await response.json()) as {
+          text?: string;
+          error?: string;
+        };
+      } catch {
+        // AppKit/Express sometimes returns HTML error pages; surface the raw body.
+        const fallbackText = await response.text().catch(() => "");
+        payload = { error: fallbackText || "Non-JSON response from server" };
+      }
+      if (!response.ok) {
+        throw new Error(payload.error ?? `Request failed (${response.status})`);
+      }
+      setResult(payload.text ?? "");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -67,11 +89,19 @@ export function AnnouncementPanel() {
           <code className="rounded bg-white/[0.06] px-1 py-0.5 font-mono text-xs text-[#9898b8]">
             01_few_shot_discord_event_announcement
           </code>{" "}
-          と同じハイパーパラメータで{" "}
+          と同様に、ハイパーパラメータ・
+          <code className="rounded bg-white/[0.06] px-1 py-0.5 font-mono text-xs text-[#9898b8]">
+            Context facts
+          </code>
+          （任意）・リクエストを渡して{" "}
           <code className="rounded bg-white/[0.06] px-1 py-0.5 font-mono text-xs text-[#9898b8]">
             ai_query
           </code>{" "}
-          を実行します。
+          を実行します。Context を空にすると、サーバーの{" "}
+          <code className="rounded bg-white/[0.06] px-1 py-0.5 font-mono text-xs text-[#9898b8]">
+            EVENT_CONTEXT_FOR_REQUEST
+          </code>{" "}
+          が使われます（未設定なら文脈ブロックなし）。
         </CardDescription>
       </CardHeader>
       <CardContent>
@@ -161,6 +191,28 @@ export function AnnouncementPanel() {
                 </SelectContent>
               </Select>
             </Field>
+          </div>
+
+          <div className="space-y-2">
+            <Label
+              htmlFor="context_for_request"
+              className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]"
+            >
+              Context facts（任意）
+            </Label>
+            <Textarea
+              id="context_for_request"
+              value={context_for_request}
+              onChange={(ev) => setContextForRequest(ev.target.value)}
+              rows={3}
+              placeholder={
+                "例: Geoguessr / 5/24（土）21:00 / TitanZz Discord / 参加はこの投稿にリアクション"
+              }
+              className="border-white/[0.07] bg-[#12121e] text-[#f0f0ff] placeholder:text-[#5a5a7a] focus-visible:ring-[#7c5cd6]/50"
+            />
+            <p className="text-xs text-[#6a6a8a]">
+              Notebook の [Context facts] に相当。入力があると環境変数より優先されます。
+            </p>
           </div>
 
           <div className="space-y-2">

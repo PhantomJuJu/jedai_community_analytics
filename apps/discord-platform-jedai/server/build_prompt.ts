@@ -43,7 +43,7 @@ export function buildFullPrompt(
     input.structure,
     input.cta_strength,
   );
-  const split = STATIC_PROMPT_CORE.split("[Single-parameter Examples", 1);
+  const split = STATIC_PROMPT_CORE.split("[Single-parameter Examples");
   if (split.length < 2) {
     throw new Error("STATIC_PROMPT_CORE missing [Single-parameter Examples marker");
   }
@@ -52,7 +52,7 @@ export function buildFullPrompt(
     "[Single-parameter Examples" +
     split[1].split("[Output instruction]", 1)[0].trimEnd();
   const output_instruction =
-    "[Output instruction]" + STATIC_PROMPT_CORE.split("[Output instruction]", 1)[1].trim();
+    "[Output instruction]" + STATIC_PROMPT_CORE.split("[Output instruction]")[1].trim();
   const context_block =
     contextFacts && contextFacts.trim().length > 0
       ? `\n\n[Context facts]\n${contextFacts.trim()}`
