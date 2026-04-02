@@ -1013,24 +1013,6 @@
       "layout": [
         {
           "widget": {
-            "name": "voice_page_title",
-            "multilineTextboxSpec": {
-              "lines": [
-                "## ボイス分析（Phase 1）",
-                "仕様ソース: apps/discord-platform-jedai/config/queries/voice_*.sql （カタログ kazuki_jedai.gold）。",
-                "README: Lakehouse にレーダー無しのため W7 は棒グラフ。scatter 非対応時は W4 を table に差し替え。"
-              ]
-            }
-          },
-          "position": {
-            "x": 0,
-            "y": 0,
-            "width": 12,
-            "height": 2
-          }
-        },
-        {
-          "widget": {
             "name": "voice_w2_weekly_kpi",
             "queries": [
               {
@@ -1091,7 +1073,7 @@
           },
           "position": {
             "x": 0,
-            "y": 2,
+            "y": 0,
             "width": 12,
             "height": 2
           }
@@ -1182,7 +1164,7 @@
           },
           "position": {
             "x": 0,
-            "y": 4,
+            "y": 2,
             "width": 12,
             "height": 6
           }
@@ -1262,7 +1244,7 @@
           },
           "position": {
             "x": 0,
-            "y": 10,
+            "y": 8,
             "width": 12,
             "height": 6
           }
@@ -1334,7 +1316,7 @@
           },
           "position": {
             "x": 0,
-            "y": 16,
+            "y": 14,
             "width": 12,
             "height": 6
           }
@@ -1409,7 +1391,7 @@
           },
           "position": {
             "x": 0,
-            "y": 22,
+            "y": 20,
             "width": 12,
             "height": 6
           }
@@ -1473,7 +1455,7 @@
           },
           "position": {
             "x": 0,
-            "y": 28,
+            "y": 26,
             "width": 8,
             "height": 6
           }
@@ -1521,7 +1503,7 @@
           },
           "position": {
             "x": 8,
-            "y": 28,
+            "y": 26,
             "width": 4,
             "height": 3
           }
@@ -1564,7 +1546,7 @@
           },
           "position": {
             "x": 8,
-            "y": 31,
+            "y": 29,
             "width": 4,
             "height": 3
           }
@@ -1652,7 +1634,7 @@
           },
           "position": {
             "x": 0,
-            "y": 34,
+            "y": 32,
             "width": 8,
             "height": 6
           }
@@ -1711,7 +1693,7 @@
           },
           "position": {
             "x": 8,
-            "y": 34,
+            "y": 32,
             "width": 4,
             "height": 6
           }
