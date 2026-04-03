@@ -7,9 +7,17 @@ AppKit アプリ: `scripts/06_dashboards` の Lakeview SQL / 指標と `scripts/
 ```bash
 cd apps/discord-platform-jedai
 npm install
-# .env に DATABRICKS_HOST, DATABRICKS_TOKEN（または CLI プロファイル）, DATABRICKS_WAREHOUSE_ID
+cp .env.example .env
+# .env を開き DATABRICKS_HOST / DATABRICKS_TOKEN / DATABRICKS_WAREHOUSE_ID を設定
 npm run dev
 ```
+
+ブラウザ: **http://localhost:8000**（`DATABRICKS_APP_PORT` 未設定時）
+
+### 起動しないとき
+
+- **`ConfigError: default auth...`** — Databricks 認証が通っていません。`.env` の `DATABRICKS_HOST` と `DATABRICKS_TOKEN`（PAT）、または [CLI 統合認証](https://docs.databricks.com/en/dev-tools/auth.html) で `databricks auth login` 済みのプロファイルを `DATABRICKS_CONFIG_PROFILE` で指定してください。`DATABRICKS_WAREHOUSE_ID` も必須です。
+- **`npm error Invalid tag name "#"`** — `npm install` の行に **`# コメント` を付けず**、1 行で `npm install` だけ実行してください（コメントは別行に）。
 
 SQL 型生成（Warehouse に接続できる環境で）:
 

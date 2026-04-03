@@ -8,47 +8,272 @@ declare module "@databricks/appkit-ui/react" {
     activity_by_weekday_hour: {
         name: "activity_by_weekday_hour";
         parameters: Record<string, never>;
-        result: unknown;
+        result: Array<{
+          /** @sqlType BIGINT */
+          guild_id: number;
+          /** @sqlType STRING */
+          guild_name: string;
+          /** @sqlType INT */
+          weekday: number;
+          /** @sqlType INT */
+          hour_slot: number;
+          /** @sqlType BIGINT */
+          message_count_aggregated: number;
+          /** @sqlType DOUBLE */
+          voice_duration_seconds_aggregated: number;
+          /** @sqlType STRING */
+          weekday_display: string;
+          /** @sqlType DOUBLE */
+          voice_duration_hours: number;
+        }>;
       };
     activity_daily: {
         name: "activity_daily";
         parameters: Record<string, never>;
-        result: unknown;
+        result: Array<{
+          /** @sqlType BIGINT */
+          guild_id: number;
+          /** @sqlType STRING */
+          guild_name: string;
+          /** @sqlType DATE */
+          activity_date: string;
+          /** @sqlType BIGINT */
+          message_count_aggregated: number;
+          /** @sqlType DOUBLE */
+          voice_duration_seconds_aggregated: number;
+          /** @sqlType DOUBLE */
+          voice_duration_hours: number;
+        }>;
       };
     activity_daily_message_trend: {
         name: "activity_daily_message_trend";
         parameters: Record<string, never>;
-        result: unknown;
+        result: Array<{
+          /** @sqlType DATE */
+          activity_date: string;
+          /** @sqlType STRING */
+          guild_name: string;
+          /** @sqlType BIGINT */
+          message_count: number;
+        }>;
       };
     activity_daily_voice_trend: {
         name: "activity_daily_voice_trend";
         parameters: Record<string, never>;
-        result: unknown;
+        result: Array<{
+          /** @sqlType DATE */
+          activity_date: string;
+          /** @sqlType STRING */
+          guild_name: string;
+          /** @sqlType DOUBLE */
+          voice_hours: number;
+        }>;
       };
     activity_summary_kpis: {
         name: "activity_summary_kpis";
         parameters: Record<string, never>;
-        result: unknown;
+        result: Array<{
+          /** @sqlType BIGINT */
+          total_messages: number;
+          /** @sqlType DOUBLE */
+          total_voice_hours: number;
+        }>;
       };
     channel_activity: {
         name: "channel_activity";
         parameters: Record<string, never>;
-        result: unknown;
+        result: Array<{
+          /** @sqlType BIGINT */
+          guild_id: number;
+          /** @sqlType STRING */
+          guild_name: string;
+          /** @sqlType STRING */
+          channel_id: string;
+          /** @sqlType STRING */
+          category_id: string;
+          /** @sqlType STRING */
+          channel_name: string;
+          /** @sqlType STRING */
+          category_name: string;
+          /** @sqlType BIGINT */
+          message_count_aggregated: number;
+          /** @sqlType DOUBLE */
+          voice_duration_seconds_aggregated: number;
+        }>;
       };
     user_activity: {
         name: "user_activity";
         parameters: Record<string, never>;
-        result: unknown;
+        result: Array<{
+          /** @sqlType BIGINT */
+          guild_id: number;
+          /** @sqlType STRING */
+          guild_name: string;
+          /** @sqlType STRING */
+          user_id: string;
+          /** @sqlType STRING */
+          user_name: string;
+          /** @sqlType BIGINT */
+          message_count_aggregated: number;
+          /** @sqlType DOUBLE */
+          voice_duration_seconds_aggregated: number;
+          /** @sqlType DOUBLE */
+          voice_duration_hours: number;
+        }>;
       };
     user_messages_ranking: {
         name: "user_messages_ranking";
         parameters: Record<string, never>;
-        result: unknown;
+        result: Array<{
+          /** @sqlType STRING */
+          user_name: string;
+          /** @sqlType BIGINT */
+          message_count: number;
+        }>;
       };
     user_voice_ranking: {
         name: "user_voice_ranking";
         parameters: Record<string, never>;
-        result: unknown;
+        result: Array<{
+          /** @sqlType STRING */
+          user_name: string;
+          /** @sqlType DOUBLE */
+          voice_hours: number;
+        }>;
+      };
+    voice_active_timeslots: {
+        name: "voice_active_timeslots";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType BIGINT */
+          guild_id: number;
+          /** @sqlType STRING */
+          guild_name: string;
+          /** @sqlType INT */
+          weekday: number;
+          /** @sqlType INT */
+          hour_slot: number;
+          /** @sqlType STRING */
+          weekday_display: string;
+          /** @sqlType BIGINT */
+          message_count_aggregated: number;
+          /** @sqlType DOUBLE */
+          voice_duration_seconds_aggregated: number;
+          /** @sqlType DOUBLE */
+          voice_duration_hours: number;
+          /** @sqlType DOUBLE */
+          voice_dominant_score: number;
+          /** @sqlType INT */
+          voice_slot_rank: number;
+        }>;
+      };
+    voice_channel_hhi: {
+        name: "voice_channel_hhi";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType BIGINT */
+          guild_id: number;
+          /** @sqlType STRING */
+          guild_name: string;
+          /** @sqlType STRING */
+          channel_name: string;
+          /** @sqlType STRING */
+          category_name: string;
+          /** @sqlType DOUBLE */
+          voice_hours: number;
+          /** @sqlType DOUBLE */
+          voice_share_pct: number;
+          /** @sqlType DOUBLE */
+          voice_channel_hhi: number;
+          /** @sqlType STRING */
+          hhi_status: string;
+        }>;
+      };
+    voice_churn_risk: {
+        name: "voice_churn_risk";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          user_name: string;
+          /** @sqlType DATE */
+          last_voice_session_date: string;
+          /** @sqlType INT */
+          days_since_last_voice: number;
+          /** @sqlType BIGINT */
+          session_count_aggregated: number;
+          /** @sqlType DOUBLE */
+          voice_hours_total: number;
+          /** @sqlType INT */
+          churn_risk_score: number;
+          /** @sqlType STRING */
+          churn_risk_level: string;
+        }>;
+      };
+    voice_ltv_ranking: {
+        name: "voice_ltv_ranking";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          user_name: string;
+          /** @sqlType STRING */
+          user_id: string;
+          /** @sqlType DOUBLE */
+          voice_hours_total: number;
+          /** @sqlType BIGINT */
+          active_week_count_aggregated: number;
+          /** @sqlType DOUBLE */
+          tenure_weeks_aggregated: number;
+          /** @sqlType DOUBLE */
+          voice_ltv_score: number;
+        }>;
+      };
+    voice_session_segment: {
+        name: "voice_session_segment";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType STRING */
+          user_name: string;
+          /** @sqlType STRING */
+          user_id: string;
+          /** @sqlType DOUBLE */
+          avg_session_minutes: number;
+          /** @sqlType BIGINT */
+          active_weeks: number;
+          /** @sqlType BIGINT */
+          session_count_aggregated: number;
+          /** @sqlType DOUBLE */
+          voice_hours_total: number;
+        }>;
+      };
+    voice_weekday_summary: {
+        name: "voice_weekday_summary";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType INT */
+          weekday: number;
+          /** @sqlType STRING */
+          weekday_label: string;
+          /** @sqlType DOUBLE */
+          daily_voice_hours: number;
+          /** @sqlType DOUBLE */
+          voice_day_score: number;
+          /** @sqlType INT */
+          low_voice_rank: number;
+        }>;
+      };
+    voice_weekly_kpi: {
+        name: "voice_weekly_kpi";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** @sqlType DOUBLE */
+          this_week_voice_hours: number;
+          /** @sqlType DOUBLE */
+          last_week_voice_hours: number;
+          /** @sqlType DOUBLE */
+          voice_growth_rate_pct: number;
+          /** @sqlType STRING */
+          voice_health_signal: string;
+        }>;
       };
   }
 }
