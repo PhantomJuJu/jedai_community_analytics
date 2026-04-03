@@ -1,3 +1,5 @@
+import "dotenv/config";
+
 import { analytics, createApp, server } from "@databricks/appkit";
 import express from "express";
 
