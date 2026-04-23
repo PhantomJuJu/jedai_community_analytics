@@ -9,6 +9,7 @@ cd apps/discord-platform-jedai
 npm install
 cp .env.example .env
 # .env を開き DATABRICKS_HOST / DATABRICKS_TOKEN / DATABRICKS_WAREHOUSE_ID を設定
+# Notebook Job 実行も使う場合は DATABRICKS_NOTEBOOK_JOB_ID も設定
 npm run dev
 ```
 
@@ -60,3 +61,9 @@ databricks apps deploy discord-platform-jedai \
 3. **Foundation Model エンドポイント**（`FOUNDATION_MODEL_ENDPOINT`）: **`ai_query`** 用の **CAN QUERY**。
 
 任意: イベント文脈をサーバのみで渡す場合は `app.yaml` の `env` に `EVENT_CONTEXT_FOR_REQUEST` を追加してください。
+
+### Notebook Job 実行（Apps から）
+
+- `app.yaml` または `.env` に `DATABRICKS_NOTEBOOK_JOB_ID=<job_id>` を設定します。
+- 告知ジェネレータタブ内の **Notebook Job を実行** ボタンから、Jobs API の `runNow` を呼び出して完了まで待機します。
+- 実行後、`run_id` と `run page URL` が画面に表示されます。

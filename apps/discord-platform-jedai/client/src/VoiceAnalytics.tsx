@@ -7,16 +7,11 @@ import {
   Skeleton,
 } from "@databricks/appkit-ui/react";
 import { useAnalyticsQuery } from "@databricks/appkit-ui/react";
-import { useMemo } from "react";
+import { useMemo, useState } from "react";
 import {
   Bar,
   BarChart as RechartsBarChart,
   CartesianGrid,
-  PolarAngleAxis,
-  PolarGrid,
-  PolarRadiusAxis,
-  Radar,
-  RadarChart,
   ReferenceLine,
   ResponsiveContainer,
   Scatter,
@@ -28,6 +23,7 @@ import {
 } from "recharts";
 
 const CARD = "rounded-xl border border-white/[0.07] bg-[#1a1b2e] transition-colors hover:bg-[#1e2035]";
+const DEFAULT_MAX_RANK_ROWS = 10;
 
 const WEEKDAY_ORDER = ["1. 月", "2. 火", "3. 水", "4. 木", "5. 金", "6. 土", "7. 日"];
 
@@ -47,13 +43,21 @@ function RankingTableCard({
   nameColumnLabel,
   valueColumnLabel,
   valueFormatter,
+  maxRows = DEFAULT_MAX_RANK_ROWS,
+  showAllToggle = true,
 }: {
   title: string;
   rows: Array<{ name: string; value: number }>;
   nameColumnLabel: string;
   valueColumnLabel: string;
   valueFormatter: (value: number) => string;
+  maxRows?: number;
+  showAllToggle?: boolean;
 }) {
+  const [showAll, setShowAll] = useState(false);
+  const displayRows = showAll ? rows : rows.slice(0, maxRows);
+  const canToggle = showAllToggle && rows.length > maxRows;
+
   return (
     <Card className={CARD}>
       <CardHeader>
@@ -75,7 +79,7 @@ function RankingTableCard({
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
+            {displayRows.map((row, index) => (
               <tr
                 key={`${row.name}-${index}`}
                 className="border-b border-white/[0.05] transition-colors hover:bg-[#1e2035]"
@@ -89,6 +93,17 @@ function RankingTableCard({
             ))}
           </tbody>
         </table>
+        {canToggle ? (
+          <div className="border-t border-white/[0.06] px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setShowAll((prev) => !prev)}
+              className="rounded-md border border-white/20 bg-white/5 px-3 py-1 text-xs text-[#cfcfeb] transition hover:bg-white/10"
+            >
+              {showAll ? `上位${maxRows}件に戻す` : "すべて表示"}
+            </button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -109,9 +124,10 @@ function churnLevelBadgeClass(level: string): string {
   }
 }
 
-function VoiceChurnRiskTable() {
+export function VoiceChurnRiskTable() {
   const params = useMemo(() => ({}), []);
   const { data, loading, error } = useAnalyticsQuery("voice_churn_risk", params);
+  const [showAll, setShowAll] = useState(false);
 
   if (loading) return <Skeleton className="h-[420px] w-full" />;
   if (error) return <p className="text-sm text-destructive">{error}</p>;
@@ -122,11 +138,13 @@ function VoiceChurnRiskTable() {
     churn_risk_level?: string;
     days_since_last_voice?: number | string;
   }>;
+  const displayRows = showAll ? rows : rows.slice(0, DEFAULT_MAX_RANK_ROWS);
+  const canToggle = rows.length > DEFAULT_MAX_RANK_ROWS;
 
   return (
     <Card className={CARD}>
       <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">ボイス離脱リスク（上位30）</CardTitle>
+        <CardTitle className="text-base font-semibold text-[#f0f0ff]">ボイス離脱リスク</CardTitle>
         <CardDescription className="text-sm text-[#9898b8]">
           最終参加からの経過日数とリスクスコア（セッション数 2 回以上）
         </CardDescription>
@@ -153,7 +171,7 @@ function VoiceChurnRiskTable() {
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
+            {displayRows.map((row, index) => (
               <tr
                 key={`${row.user_name}-${index}`}
                 className="border-b border-white/[0.05] transition-colors hover:bg-[#1e2035]"
@@ -179,12 +197,23 @@ function VoiceChurnRiskTable() {
             ))}
           </tbody>
         </table>
+        {canToggle ? (
+          <div className="border-t border-white/[0.06] px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setShowAll((prev) => !prev)}
+              className="rounded-md border border-white/20 bg-white/5 px-3 py-1 text-xs text-[#cfcfeb] transition hover:bg-white/10"
+            >
+              {showAll ? `上位${DEFAULT_MAX_RANK_ROWS}件に戻す` : "すべて表示"}
+            </button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
 }
 
-function VoiceWeeklyKpiStrip() {
+export function VoiceWeeklyKpiStrip() {
   const params = useMemo(() => ({}), []);
   const { data, loading, error } = useAnalyticsQuery("voice_weekly_kpi", params);
 
@@ -253,7 +282,7 @@ function VoiceWeeklyKpiStrip() {
   );
 }
 
-function VoiceHeatmapCard() {
+export function VoiceHeatmapCard() {
   const params = useMemo(() => ({}), []);
   const { data, loading, error } = useAnalyticsQuery("voice_active_timeslots", params);
 
@@ -285,7 +314,7 @@ function VoiceHeatmapCard() {
         </CardDescription>
       </CardHeader>
       <CardContent className="overflow-x-auto">
-        <div className="mx-auto min-w-[720px] max-w-[860px]">
+        <div className="w-full min-w-[720px]">
           <div className="mb-2 grid grid-cols-[84px_repeat(24,minmax(18px,1fr))] gap-[4px] text-[10px] text-[#7a7a9a]">
             <div />
             {Array.from({ length: 24 }, (_, hour) => (
@@ -333,7 +362,7 @@ function median(nums: number[]): number {
   return s.length % 2 ? s[mid]! : (s[mid - 1]! + s[mid]!) / 2;
 }
 
-function VoiceSessionScatterCard() {
+export function VoiceSessionScatterCard() {
   const params = useMemo(() => ({}), []);
   const { data, loading, error } = useAnalyticsQuery("voice_session_segment", params);
 
@@ -407,7 +436,7 @@ function VoiceSessionScatterCard() {
   );
 }
 
-function VoiceLtvRankingTable() {
+export function VoiceLtvRankingTable() {
   const params = useMemo(() => ({}), []);
   const { data, loading, error } = useAnalyticsQuery("voice_ltv_ranking", params);
 
@@ -421,16 +450,18 @@ function VoiceLtvRankingTable() {
 
   return (
     <RankingTableCard
-      title="ボイス LTV スコアランキング（上位20）"
+      title="ボイス LTV スコアランキング"
       rows={rows}
       nameColumnLabel="ユーザ"
       valueColumnLabel="LTV スコア"
       valueFormatter={(value) => value.toFixed(2)}
+      maxRows={DEFAULT_MAX_RANK_ROWS}
+      showAllToggle
     />
   );
 }
 
-function VoiceChannelHhiCard() {
+export function VoiceChannelHhiCard() {
   const params = useMemo(() => ({}), []);
   const { data, loading, error } = useAnalyticsQuery("voice_channel_hhi", params);
 
@@ -503,99 +534,3 @@ function VoiceChannelHhiCard() {
   );
 }
 
-function VoiceWeekdayRadarCard() {
-  const params = useMemo(() => ({}), []);
-  const { data, loading, error } = useAnalyticsQuery("voice_weekday_summary", params);
-
-  if (loading) return <Skeleton className="h-[400px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
-
-  const rows = (data ?? []) as Array<{
-    weekday_label?: string;
-    daily_voice_hours?: number | string;
-    low_voice_rank?: number | string;
-  }>;
-
-  const chartData = WEEKDAY_ORDER.map((label) => {
-    const row = rows.find((r) => r.weekday_label === label);
-    return {
-      weekday_label: label,
-      daily_voice_hours: row ? toNumber(row.daily_voice_hours) : 0,
-      low_voice_rank: row ? toNumber(row.low_voice_rank) : 0,
-    };
-  });
-
-  const thinnest = chartData.find((d) => d.low_voice_rank === 1);
-
-  return (
-    <Card className={CARD}>
-      <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">曜日別ボイス時間（レーダー）</CardTitle>
-        <CardDescription className="text-sm text-[#9898b8]">
-          {thinnest
-            ? `ボイスが最も薄い曜日: ${thinnest.weekday_label}（強調ドット）`
-            : "曜日ごとの合計ボイス時間"}
-        </CardDescription>
-      </CardHeader>
-      <CardContent>
-        <div className="h-[340px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <RadarChart cx="50%" cy="50%" outerRadius="75%" data={chartData}>
-              <PolarGrid stroke="rgba(255,255,255,0.2)" />
-              <PolarAngleAxis dataKey="weekday_label" tick={{ fill: "#b2b2d0", fontSize: 11 }} />
-              <PolarRadiusAxis angle={30} domain={[0, "auto"]} tick={{ fill: "#7a7a9a", fontSize: 10 }} />
-              <Radar
-                name="時間"
-                dataKey="daily_voice_hours"
-                stroke="#5a9cf8"
-                fill="rgba(90, 156, 248, 0.35)"
-                strokeWidth={2}
-                dot={(props: { cx?: number; cy?: number; payload?: { low_voice_rank?: number } }) => {
-                  const { cx, cy, payload } = props;
-                  if (cx === undefined || cy === undefined) return null;
-                  const isLow = payload?.low_voice_rank === 1;
-                  return (
-                    <circle
-                      cx={cx}
-                      cy={cy}
-                      r={isLow ? 7 : 4}
-                      fill={isLow ? "#ff8c66" : "#5a9cf8"}
-                      stroke="rgba(255,255,255,0.5)"
-                      strokeWidth={1}
-                    />
-                  );
-                }}
-              />
-              <Tooltip
-                contentStyle={{
-                  background: "#12121e",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  color: "#f0f0ff",
-                }}
-                formatter={(v: number) => [`${v.toFixed(2)} 時間`, "ボイス"]}
-              />
-            </RadarChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-export function VoiceAnalyticsTab() {
-  return (
-    <div className="space-y-4">
-      <VoiceWeeklyKpiStrip />
-      <div className="grid gap-4 xl:grid-cols-2">
-        <VoiceChurnRiskTable />
-        <VoiceLtvRankingTable />
-      </div>
-      <VoiceHeatmapCard />
-      <div className="grid gap-4 xl:grid-cols-2">
-        <VoiceSessionScatterCard />
-        <VoiceWeekdayRadarCard />
-      </div>
-      <VoiceChannelHhiCard />
-    </div>
-  );
-}

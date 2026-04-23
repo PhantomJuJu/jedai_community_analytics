@@ -33,6 +33,16 @@ export function AnnouncementPanel() {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [jobPending, setJobPending] = useState(false);
+  const [jobError, setJobError] = useState<string | null>(null);
+  const [jobResult, setJobResult] = useState<{
+    jobId: number;
+    runId: number | null;
+    runPageUrl: string | null;
+    lifeCycleState: string;
+    resultState: string;
+    stateMessage: string;
+  } | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -75,6 +85,49 @@ export function AnnouncementPanel() {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setPending(false);
+    }
+  }
+
+  async function onRunNotebookJob() {
+    setJobPending(true);
+    setJobError(null);
+    setJobResult(null);
+    try {
+      const response = await fetch("/api/notebook-job/run", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({}),
+      });
+      let payload: {
+        error?: string;
+        jobId?: number;
+        runId?: number | null;
+        runPageUrl?: string | null;
+        lifeCycleState?: string;
+        resultState?: string;
+        stateMessage?: string;
+      } = {};
+      try {
+        payload = (await response.json()) as typeof payload;
+      } catch {
+        const fallbackText = await response.text().catch(() => "");
+        payload = { error: fallbackText || "Non-JSON response from server" };
+      }
+      if (!response.ok) {
+        throw new Error(payload.error ?? `Request failed (${response.status})`);
+      }
+      setJobResult({
+        jobId: payload.jobId ?? -1,
+        runId: payload.runId ?? null,
+        runPageUrl: payload.runPageUrl ?? null,
+        lifeCycleState: payload.lifeCycleState ?? "UNKNOWN",
+        resultState: payload.resultState ?? "UNKNOWN",
+        stateMessage: payload.stateMessage ?? "",
+      });
+    } catch (err) {
+      setJobError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setJobPending(false);
     }
   }
 
@@ -249,6 +302,46 @@ export function AnnouncementPanel() {
             {result}
           </pre>
         ) : null}
+
+        <div className="mt-8 rounded-lg border border-white/[0.07] bg-[#12121e] p-4">
+          <p className="text-sm font-semibold text-[#f0f0ff]">Notebook Job 実行</p>
+          <p className="mt-1 text-xs text-[#9898b8]">
+            `DATABRICKS_NOTEBOOK_JOB_ID` に設定した Job を実行し、完了まで待機します。
+          </p>
+          <Button
+            type="button"
+            onClick={onRunNotebookJob}
+            disabled={jobPending}
+            className="mt-3 bg-[#2f6feb] text-white hover:bg-[#4a82ee] disabled:opacity-50"
+          >
+            {jobPending ? "Job実行中…" : "Notebook Job を実行"}
+          </Button>
+
+          {jobError ? <p className="mt-3 text-sm text-red-400">{jobError}</p> : null}
+
+          {jobResult ? (
+            <div className="mt-3 rounded border border-white/[0.07] bg-[#0f0f1a] p-3 text-xs text-[#d7d7f4]">
+              <p>job_id: {jobResult.jobId}</p>
+              <p>run_id: {jobResult.runId ?? "N/A"}</p>
+              <p>life_cycle_state: {jobResult.lifeCycleState}</p>
+              <p>result_state: {jobResult.resultState}</p>
+              {jobResult.stateMessage ? <p>message: {jobResult.stateMessage}</p> : null}
+              {jobResult.runPageUrl ? (
+                <p className="mt-1">
+                  run page:{" "}
+                  <a
+                    href={jobResult.runPageUrl}
+                    target="_blank"
+                    rel="noreferrer"
+                    className="text-[#7ea8ff] underline underline-offset-2"
+                  >
+                    {jobResult.runPageUrl}
+                  </a>
+                </p>
+              ) : null}
+            </div>
+          ) : null}
+        </div>
       </CardContent>
     </Card>
   );

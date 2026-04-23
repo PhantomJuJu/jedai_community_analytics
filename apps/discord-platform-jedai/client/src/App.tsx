@@ -4,56 +4,45 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  Skeleton,
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
+  Skeleton,
   Tabs,
   TabsContent,
   TabsList,
   TabsTrigger,
 } from "@databricks/appkit-ui/react";
 import { useAnalyticsQuery } from "@databricks/appkit-ui/react";
-import { createContext, useContext, useMemo, useState, type Dispatch, type SetStateAction } from "react";
+import { createContext, useContext, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
 import {
-  Bar,
   CartesianGrid,
   Line,
   ResponsiveContainer,
   Tooltip,
   XAxis,
   YAxis,
-  BarChart as RechartsBarChart,
   LineChart as RechartsLineChart,
 } from "recharts";
 import { AnnouncementPanel } from "./AnnouncementPanel.js";
-import { VoiceAnalyticsTab } from "./VoiceAnalytics.js";
-
-type WeekdayHourRow = {
-  guild_name?: string;
-  weekday_display?: string;
-  hour_slot?: number | string;
-  message_count_aggregated?: number | string;
-  voice_duration_hours?: number | string;
-};
-
-const WEEKDAY_ORDER = ["1. 月", "2. 火", "3. 水", "4. 木", "5. 金", "6. 土", "7. 日"];
-
-function toNumber(value: number | string | undefined): number {
-  return Number(value ?? 0);
-}
+import {
+  VoiceChannelHhiCard,
+  VoiceChurnRiskTable,
+  VoiceHeatmapCard,
+  VoiceLtvRankingTable,
+  VoiceSessionScatterCard,
+} from "./VoiceAnalytics.js";
 
 const CARD = "rounded-xl border border-white/[0.07] bg-[#1a1b2e] transition-colors hover:bg-[#1e2035]";
 const ALL_GUILDS = "__ALL_GUILDS__";
-const ALL_CHANNELS = "__ALL_CHANNELS__";
+const DEFAULT_MAX_RANK_ROWS = 10;
 
 type FilterState = {
-  dateFrom: string;
-  dateTo: string;
+  selectedMonth: string;
   guildName: string;
-  channelName: string;
+  categoryNames: string[];
 };
 
 type FilterContextValue = {
@@ -63,10 +52,9 @@ type FilterContextValue = {
 };
 
 const DEFAULT_FILTERS: FilterState = {
-  dateFrom: "",
-  dateTo: "",
+  selectedMonth: "",
   guildName: "",
-  channelName: "",
+  categoryNames: [],
 };
 
 const FilterContext = createContext<FilterContextValue | null>(null);
@@ -79,12 +67,13 @@ function useFilterContext(): FilterContextValue {
   return context;
 }
 
-function inDateRange(dateValue: string | undefined, dateFrom: string, dateTo: string): boolean {
-  if (!dateFrom && !dateTo) return true;
-  if (!dateValue) return false;
-  if (dateFrom && dateValue < dateFrom) return false;
-  if (dateTo && dateValue > dateTo) return false;
-  return true;
+function toNumber(value: number | string | undefined): number {
+  return Number(value ?? 0);
+}
+
+function inSelectedMonth(dateValue: string | undefined, month: string): boolean {
+  if (!month) return true;
+  return (dateValue ?? "").startsWith(month);
 }
 
 function matchGuild(guildName: string | undefined, filterGuild: string): boolean {
@@ -92,34 +81,73 @@ function matchGuild(guildName: string | undefined, filterGuild: string): boolean
   return guildName === filterGuild;
 }
 
-function matchChannel(channelName: string | undefined, filterChannel: string): boolean {
-  if (!filterChannel) return true;
-  return channelName === filterChannel;
+function matchCategory(categoryName: string | undefined, categories: string[]): boolean {
+  if (categories.length === 0) return true;
+  return categories.includes(categoryName ?? "");
+}
+
+function formatMonthLabel(month: string): string {
+  const [year, monthPart] = month.split("-");
+  return `${year}年${monthPart}月`;
+}
+
+function SectionHeading({
+  eyebrow,
+  title,
+  description,
+}: {
+  eyebrow: string;
+  title: string;
+  description?: string;
+}) {
+  return (
+    <div className="mb-1 mt-1">
+      <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#5a5a7a]">{eyebrow}</p>
+      <h2 className="mt-1 text-lg font-semibold text-[#f0f0ff]">{title}</h2>
+      {description ? <p className="mt-0.5 text-xs text-[#9898b8]">{description}</p> : null}
+    </div>
+  );
 }
 
 function FilterBar() {
   const { filters, setFilters, resetFilters } = useFilterContext();
   const params = useMemo(() => ({}), []);
-  const { data } = useAnalyticsQuery("channel_activity", params);
+  const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const categoryPanelRef = useRef<HTMLDivElement | null>(null);
 
-  const rows = (data ?? []) as Array<{ guild_name?: string; channel_name?: string }>;
+  const { data: channelData } = useAnalyticsQuery("channel_activity", params);
+  const { data: trendData } = useAnalyticsQuery("activity_daily_message_trend", params);
+
+  const channelRows = (channelData ?? []) as Array<{
+    guild_name?: string;
+    category_name?: string;
+  }>;
+  const trendRows = (trendData ?? []) as Array<{ activity_date?: string }>;
+
+  const monthOptions = useMemo(
+    () =>
+      [...new Set(trendRows.map((row) => (row.activity_date ?? "").slice(0, 7)).filter((month) => month.length === 7))].sort(),
+    [trendRows],
+  );
 
   const guildOptions = useMemo(
     () =>
-      [...new Set(rows.map((row) => row.guild_name).filter((name): name is string => Boolean(name)))].sort((a, b) =>
+      [...new Set(channelRows.map((row) => row.guild_name).filter((name): name is string => Boolean(name)))].sort((a, b) =>
         a.localeCompare(b, "ja"),
       ),
-    [rows],
+    [channelRows],
   );
 
-  const channelOptions = useMemo(() => {
-    const filteredRows = filters.guildName ? rows.filter((row) => row.guild_name === filters.guildName) : rows;
-    return [...new Set(filteredRows.map((row) => row.channel_name).filter((name): name is string => Boolean(name)))].sort(
-      (a, b) => a.localeCompare(b, "ja"),
+  const categoryOptions = useMemo(() => {
+    const scopedRows = filters.guildName
+      ? channelRows.filter((row) => row.guild_name === filters.guildName)
+      : channelRows;
+    return [...new Set(scopedRows.map((row) => row.category_name).filter((name): name is string => Boolean(name)))].sort((a, b) =>
+      a.localeCompare(b, "ja"),
     );
-  }, [filters.guildName, rows]);
+  }, [channelRows, filters.guildName]);
 
-  const hasActiveFilters = Boolean(filters.dateFrom || filters.dateTo || filters.guildName || filters.channelName);
+  const hasActiveFilters = Boolean(filters.selectedMonth || filters.guildName || filters.categoryNames.length > 0);
 
   return (
     <Card className="rounded-2xl border border-white/[0.08] bg-[#0e0f1e]/80 shadow-[0_14px_60px_-24px_rgba(124,92,214,0.6)] backdrop-blur">
@@ -145,33 +173,36 @@ function FilterBar() {
       <CardContent className="grid gap-3 pb-5 md:grid-cols-3">
         <div
           className={`rounded-xl border bg-[#14152a]/80 p-3 transition ${
-            filters.dateFrom || filters.dateTo ? "border-[#7c5cd6]/60 ring-1 ring-[#7c5cd6]/40" : "border-white/[0.08]"
+            filters.selectedMonth ? "border-[#7c5cd6]/60 ring-1 ring-[#7c5cd6]/40" : "border-white/[0.08]"
           }`}
         >
-          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#6e6e96]">期間</p>
-          <div className="grid gap-2">
-            <input
-              type="date"
-              value={filters.dateFrom}
-              onChange={(event) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  dateFrom: event.target.value,
-                }))
-              }
-              className="h-9 rounded-lg border border-white/[0.12] bg-[#101126] px-3 text-xs text-[#f0f0ff] outline-none transition focus:border-[#7c5cd6]"
-            />
-            <input
-              type="date"
-              value={filters.dateTo}
-              onChange={(event) =>
-                setFilters((prev) => ({
-                  ...prev,
-                  dateTo: event.target.value,
-                }))
-              }
-              className="h-9 rounded-lg border border-white/[0.12] bg-[#101126] px-3 text-xs text-[#f0f0ff] outline-none transition focus:border-[#7c5cd6]"
-            />
+          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#6e6e96]">期間（月）</p>
+          <div className="flex flex-wrap gap-2">
+            <button
+              type="button"
+              onClick={() => setFilters((prev) => ({ ...prev, selectedMonth: "" }))}
+              className={`rounded-full border px-2.5 py-1 text-xs transition ${
+                filters.selectedMonth === ""
+                  ? "border-[#7c5cd6] bg-[#7c5cd6] text-white"
+                  : "border-white/[0.15] bg-[#101126] text-[#c9c9e7] hover:border-white/[0.3]"
+              }`}
+            >
+              全期間
+            </button>
+            {monthOptions.map((month) => (
+              <button
+                key={month}
+                type="button"
+                onClick={() => setFilters((prev) => ({ ...prev, selectedMonth: month }))}
+                className={`rounded-full border px-2.5 py-1 text-xs transition ${
+                  filters.selectedMonth === month
+                    ? "border-[#7c5cd6] bg-[#7c5cd6] text-white"
+                    : "border-white/[0.15] bg-[#101126] text-[#c9c9e7] hover:border-white/[0.3]"
+                }`}
+              >
+                {formatMonthLabel(month)}
+              </button>
+            ))}
           </div>
         </div>
 
@@ -187,7 +218,7 @@ function FilterBar() {
               setFilters((prev) => ({
                 ...prev,
                 guildName: value === ALL_GUILDS ? "" : value,
-                channelName: "",
+                categoryNames: [],
               }))
             }
           >
@@ -206,32 +237,67 @@ function FilterBar() {
         </div>
 
         <div
-          className={`rounded-xl border bg-[#14152a]/80 p-3 transition ${
-            filters.channelName ? "border-[#7c5cd6]/60 ring-1 ring-[#7c5cd6]/40" : "border-white/[0.08]"
+          ref={categoryPanelRef}
+          className={`relative rounded-xl border bg-[#14152a]/80 p-3 transition ${
+            filters.categoryNames.length > 0 ? "border-[#7c5cd6]/60 ring-1 ring-[#7c5cd6]/40" : "border-white/[0.08]"
           }`}
         >
-          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#6e6e96]">Channel</p>
-          <Select
-            value={filters.channelName || ALL_CHANNELS}
-            onValueChange={(value) =>
-              setFilters((prev) => ({
-                ...prev,
-                channelName: value === ALL_CHANNELS ? "" : value,
-              }))
-            }
+          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#6e6e96]">Category（複数）</p>
+          <button
+            type="button"
+            onClick={() => setIsCategoryOpen((prev) => !prev)}
+            className="h-9 w-full rounded-lg border border-white/[0.12] bg-[#101126] px-3 text-left text-xs text-[#f0f0ff]"
           >
-            <SelectTrigger className="h-9 border-white/[0.12] bg-[#101126] text-xs text-[#f0f0ff]">
-              <SelectValue placeholder="すべてのChannel" />
-            </SelectTrigger>
-            <SelectContent className="border-white/[0.12] bg-[#101126] text-[#f0f0ff]">
-              <SelectItem value={ALL_CHANNELS}>すべてのChannel</SelectItem>
-              {channelOptions.map((channelName) => (
-                <SelectItem key={channelName} value={channelName}>
-                  {channelName}
-                </SelectItem>
+            {filters.categoryNames.length === 0 ? "すべてのカテゴリ" : `${filters.categoryNames.length}件選択中`}
+          </button>
+          {filters.categoryNames.length > 0 ? (
+            <div className="mt-2 flex flex-wrap gap-1.5">
+              {filters.categoryNames.map((name) => (
+                <span key={name} className="rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] text-[#e1e1ff]">
+                  {name}
+                </span>
               ))}
-            </SelectContent>
-          </Select>
+            </div>
+          ) : null}
+          {isCategoryOpen ? (
+            <div className="absolute left-0 top-[78px] z-20 w-full rounded-lg border border-white/[0.15] bg-[#0f1020] p-2 shadow-xl">
+              <button
+                type="button"
+                onClick={() =>
+                  setFilters((prev) => ({
+                    ...prev,
+                    categoryNames: [],
+                  }))
+                }
+                className="mb-1 w-full rounded px-2 py-1 text-left text-xs text-[#cfcfeb] hover:bg-white/10"
+              >
+                すべて解除
+              </button>
+              <div className="max-h-48 overflow-y-auto">
+                {categoryOptions.map((categoryName) => {
+                  const checked = filters.categoryNames.includes(categoryName);
+                  return (
+                    <label key={categoryName} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-white/10">
+                      <input
+                        type="checkbox"
+                        checked={checked}
+                        onChange={() =>
+                          setFilters((prev) => ({
+                            ...prev,
+                            categoryNames: checked
+                              ? prev.categoryNames.filter((item) => item !== categoryName)
+                              : [...prev.categoryNames, categoryName],
+                          }))
+                        }
+                        className="h-3.5 w-3.5 accent-[#7c5cd6]"
+                      />
+                      <span className="text-xs text-[#d7d7f4]">{categoryName}</span>
+                    </label>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
         </div>
       </CardContent>
     </Card>
@@ -239,48 +305,100 @@ function FilterBar() {
 }
 
 function KpiStrip() {
+  const { filters } = useFilterContext();
   const params = useMemo(() => ({}), []);
-  const { data, loading, error } = useAnalyticsQuery("activity_summary_kpis", params);
+  const { data, loading, error } = useAnalyticsQuery("activity_by_category_daily", params);
+  const { data: weeklyData, loading: weeklyLoading, error: weeklyError } = useAnalyticsQuery("voice_weekly_kpi", params);
 
-  if (loading) {
+  if (loading || weeklyLoading) {
     return (
       <div className="grid gap-4 md:grid-cols-2">
+        <Skeleton className="h-28 w-full" />
+        <Skeleton className="h-28 w-full" />
         <Skeleton className="h-28 w-full" />
         <Skeleton className="h-28 w-full" />
       </div>
     );
   }
-  if (error) {
-    return <p className="text-sm text-destructive">{error}</p>;
-  }
-  const row = data?.[0] as
-    | { total_messages?: string | number; total_voice_hours?: string | number }
+  if (error) return <p className="text-sm text-destructive">{error}</p>;
+  if (weeklyError) return <p className="text-sm text-destructive">{weeklyError}</p>;
+
+  const rows = (data ?? []) as Array<{
+    activity_date?: string;
+    guild_name?: string;
+    category_name?: string;
+    message_count?: number | string;
+    voice_duration_hours?: number | string;
+    voice_duration_seconds?: number | string;
+  }>;
+
+  const filteredRows = rows.filter(
+    (row) =>
+      inSelectedMonth(row.activity_date, filters.selectedMonth) &&
+      matchGuild(row.guild_name, filters.guildName) &&
+      matchCategory(row.category_name, filters.categoryNames),
+  );
+
+  const messages = filteredRows.reduce((sum, row) => sum + toNumber(row.message_count), 0);
+  const hours = filteredRows.reduce((sum, row) => {
+    const hoursFromRow = Math.max(toNumber(row.voice_duration_hours), 0);
+    if (hoursFromRow !== 0) {
+      return sum + hoursFromRow;
+    }
+    return sum + Math.max(toNumber(row.voice_duration_seconds), 0) / 3600;
+  }, 0);
+
+  const weeklyRow = (weeklyData ?? [])[0] as
+    | {
+        this_week_voice_hours?: number | string;
+        last_week_voice_hours?: number | string;
+        voice_growth_rate_pct?: number | string | null;
+        voice_health_signal?: string;
+      }
     | undefined;
-  if (!row) {
-    return <p className="text-sm text-[#9898b8]">サマリー未取得</p>;
-  }
-  const messages = Number(row.total_messages ?? 0);
-  const hours = Number(row.total_voice_hours ?? 0);
+  const thisWeekHours = toNumber(weeklyRow?.this_week_voice_hours);
+  const lastWeekHours = toNumber(weeklyRow?.last_week_voice_hours);
+  const pctRaw = weeklyRow?.voice_growth_rate_pct;
+  const growthPct = pctRaw === null || pctRaw === undefined ? null : toNumber(pctRaw);
+  const signal = weeklyRow?.voice_health_signal ?? "GREEN";
+
   return (
-    <div className="grid gap-4 xl:grid-cols-2">
+    <div className="grid gap-4 md:grid-cols-2">
       <Card className={CARD}>
         <CardHeader className="pb-3">
           <CardDescription className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-            今月の合計メッセージ数
+            選択期間の合計メッセージ数
           </CardDescription>
-          <CardTitle className="mt-2 text-4xl font-semibold tabular-nums text-[#f0f0ff]">
-            {messages.toLocaleString()}
-          </CardTitle>
+          <CardTitle className="mt-2 text-4xl font-semibold tabular-nums text-[#f0f0ff]">{messages.toLocaleString()}</CardTitle>
         </CardHeader>
       </Card>
       <Card className={CARD}>
         <CardHeader className="pb-3">
           <CardDescription className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-            今月の合計ボイス時間（時間）
+            選択期間の合計ボイス時間（時間）
           </CardDescription>
-          <CardTitle className="mt-2 text-4xl font-semibold tabular-nums text-[#f0f0ff]">
-            {hours.toFixed(2)}
+          <CardTitle className="mt-2 text-4xl font-semibold tabular-nums text-[#f0f0ff]">{hours.toFixed(2)}</CardTitle>
+        </CardHeader>
+      </Card>
+      <Card className={CARD}>
+        <CardHeader className="pb-3">
+          <CardDescription className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
+            前週比（%） / 健全性シグナル
+          </CardDescription>
+          <CardTitle className="mt-2 text-3xl font-semibold tabular-nums text-[#f0f0ff]">
+            {growthPct === null ? "—" : `${growthPct >= 0 ? "+" : ""}${growthPct.toFixed(1)}%`}
           </CardTitle>
+          <p className="mt-1 text-xs text-[#7a7a9a]">
+            前週: {lastWeekHours.toFixed(2)}h · signal: {signal}
+          </p>
+        </CardHeader>
+      </Card>
+      <Card className={CARD}>
+        <CardHeader className="pb-3">
+          <CardDescription className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
+            今週のボイス時間（直近7日・時間）
+          </CardDescription>
+          <CardTitle className="mt-2 text-4xl font-semibold tabular-nums text-[#f0f0ff]">{thisWeekHours.toFixed(2)}</CardTitle>
         </CardHeader>
       </Card>
     </div>
@@ -296,13 +414,14 @@ function MessageTrendCard() {
   if (error) return <p className="text-sm text-destructive">{error}</p>;
 
   const rows = (data ?? []) as Array<{ activity_date?: string; guild_name?: string; message_count?: number | string }>;
-  const filteredRows = rows.filter(
-    (row) => inDateRange(row.activity_date, filters.dateFrom, filters.dateTo) && matchGuild(row.guild_name, filters.guildName),
-  );
-  const chartData = filteredRows.map((row) => ({
-    activity_date: row.activity_date ?? "",
-    message_count: toNumber(row.message_count),
-  }));
+  const chartData = rows
+    .filter(
+      (row) => inSelectedMonth(row.activity_date, filters.selectedMonth) && matchGuild(row.guild_name, filters.guildName),
+    )
+    .map((row) => ({
+      activity_date: row.activity_date ?? "",
+      message_count: toNumber(row.message_count),
+    }));
 
   return (
     <Card className={CARD}>
@@ -315,34 +434,13 @@ function MessageTrendCard() {
           <ResponsiveContainer width="100%" height="100%">
             <RechartsLineChart data={chartData} margin={{ top: 10, right: 16, left: 8, bottom: 0 }}>
               <CartesianGrid stroke="rgba(255,255,255,0.16)" strokeDasharray="0" />
-              <XAxis
-                dataKey="activity_date"
-                tick={{ fill: "#f0f0ff", fontSize: 12 }}
-                tickLine={{ stroke: "rgba(255,255,255,0.4)" }}
-                axisLine={{ stroke: "rgba(255,255,255,0.4)" }}
-              />
-              <YAxis
-                tick={{ fill: "#f0f0ff", fontSize: 12 }}
-                tickLine={{ stroke: "rgba(255,255,255,0.4)" }}
-                axisLine={{ stroke: "rgba(255,255,255,0.4)" }}
-                width={48}
-              />
+              <XAxis dataKey="activity_date" tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={{ stroke: "rgba(255,255,255,0.4)" }} />
+              <YAxis tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={{ stroke: "rgba(255,255,255,0.4)" }} width={48} />
               <Tooltip
-                contentStyle={{
-                  background: "#12121e",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  color: "#f0f0ff",
-                }}
+                contentStyle={{ background: "#12121e", border: "1px solid rgba(255,255,255,0.18)", color: "#f0f0ff" }}
                 labelStyle={{ color: "#f0f0ff" }}
               />
-              <Line
-                type="monotone"
-                dataKey="message_count"
-                stroke="#7c5cd6"
-                strokeWidth={3}
-                dot={false}
-                activeDot={{ r: 5, fill: "#9b7ee8" }}
-              />
+              <Line type="monotone" dataKey="message_count" stroke="#7c5cd6" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
             </RechartsLineChart>
           </ResponsiveContainer>
         </div>
@@ -360,13 +458,14 @@ function VoiceTrendCard() {
   if (error) return <p className="text-sm text-destructive">{error}</p>;
 
   const rows = (data ?? []) as Array<{ activity_date?: string; guild_name?: string; voice_hours?: number | string }>;
-  const filteredRows = rows.filter(
-    (row) => inDateRange(row.activity_date, filters.dateFrom, filters.dateTo) && matchGuild(row.guild_name, filters.guildName),
-  );
-  const chartData = filteredRows.map((row) => ({
-    activity_date: row.activity_date ?? "",
-    voice_hours: toNumber(row.voice_hours),
-  }));
+  const chartData = rows
+    .filter(
+      (row) => inSelectedMonth(row.activity_date, filters.selectedMonth) && matchGuild(row.guild_name, filters.guildName),
+    )
+    .map((row) => ({
+      activity_date: row.activity_date ?? "",
+      voice_hours: toNumber(row.voice_hours),
+    }));
 
   return (
     <Card className={CARD}>
@@ -379,324 +478,15 @@ function VoiceTrendCard() {
           <ResponsiveContainer width="100%" height="100%">
             <RechartsLineChart data={chartData} margin={{ top: 10, right: 16, left: 8, bottom: 0 }}>
               <CartesianGrid stroke="rgba(255,255,255,0.16)" strokeDasharray="0" />
-              <XAxis
-                dataKey="activity_date"
-                tick={{ fill: "#f0f0ff", fontSize: 12 }}
-                tickLine={{ stroke: "rgba(255,255,255,0.4)" }}
-                axisLine={{ stroke: "rgba(255,255,255,0.4)" }}
-              />
-              <YAxis
-                tick={{ fill: "#f0f0ff", fontSize: 12 }}
-                tickLine={{ stroke: "rgba(255,255,255,0.4)" }}
-                axisLine={{ stroke: "rgba(255,255,255,0.4)" }}
-                width={48}
-              />
+              <XAxis dataKey="activity_date" tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={{ stroke: "rgba(255,255,255,0.4)" }} />
+              <YAxis tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={{ stroke: "rgba(255,255,255,0.4)" }} width={48} />
               <Tooltip
-                contentStyle={{
-                  background: "#12121e",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  color: "#f0f0ff",
-                }}
+                contentStyle={{ background: "#12121e", border: "1px solid rgba(255,255,255,0.18)", color: "#f0f0ff" }}
                 labelStyle={{ color: "#f0f0ff" }}
               />
-              <Line
-                type="monotone"
-                dataKey="voice_hours"
-                stroke="#5a9cf8"
-                strokeWidth={3}
-                dot={false}
-                activeDot={{ r: 5, fill: "#7fb4ff" }}
-              />
+              <Line type="monotone" dataKey="voice_hours" stroke="#5a9cf8" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
             </RechartsLineChart>
           </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function WeekdayMessageBarChart() {
-  const { filters } = useFilterContext();
-  const params = useMemo(() => ({}), []);
-  const { data, loading, error } = useAnalyticsQuery("activity_by_weekday_hour", params);
-
-  if (loading) return <Skeleton className="h-[320px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
-
-  const grouped = new Map<string, number>();
-  for (const row of (data ?? []) as Array<{
-    weekday_display?: string;
-    guild_name?: string;
-    message_count_aggregated?: number | string;
-  }>) {
-    if (!matchGuild(row.guild_name, filters.guildName)) continue;
-    const key = row.weekday_display ?? "unknown";
-    grouped.set(key, (grouped.get(key) ?? 0) + toNumber(row.message_count_aggregated));
-  }
-  const chartData = WEEKDAY_ORDER.map((day) => ({ weekday: day, value: grouped.get(day) ?? 0 }));
-
-  return (
-    <Card className={CARD}>
-      <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">曜日別メッセージ数</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="h-[260px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <RechartsBarChart data={chartData} margin={{ top: 10, right: 10, left: 8, bottom: 0 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.16)" strokeDasharray="0" />
-              <XAxis dataKey="weekday" tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={false} tickLine={false} width={48} />
-              <Tooltip
-                contentStyle={{
-                  background: "#12121e",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  color: "#f0f0ff",
-                }}
-                labelStyle={{ color: "#f0f0ff" }}
-              />
-              <Bar dataKey="value" fill="#7c5cd6" radius={[6, 6, 0, 0]} stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
-            </RechartsBarChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function WeekdayVoiceChart() {
-  const { filters } = useFilterContext();
-  const params = useMemo(() => ({}), []);
-  const { data, loading, error } = useAnalyticsQuery("activity_by_weekday_hour", params);
-
-  if (loading) return <Skeleton className="h-[320px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
-
-  const grouped = new Map<string, number>();
-  for (const row of (data ?? []) as Array<{
-    weekday_display?: string;
-    guild_name?: string;
-    voice_duration_hours?: number | string;
-  }>) {
-    if (!matchGuild(row.guild_name, filters.guildName)) continue;
-    const key = row.weekday_display ?? "unknown";
-    grouped.set(key, (grouped.get(key) ?? 0) + toNumber(row.voice_duration_hours));
-  }
-  const chartData = WEEKDAY_ORDER.map((day) => ({ weekday: day, value: grouped.get(day) ?? 0 }));
-
-  return (
-    <Card className={CARD}>
-      <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">曜日別ボイスチャット時間</CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="h-[260px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <RechartsBarChart data={chartData} margin={{ top: 10, right: 10, left: 8, bottom: 0 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.16)" strokeDasharray="0" />
-              <XAxis dataKey="weekday" tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={false} tickLine={false} />
-              <YAxis tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={false} tickLine={false} width={48} />
-              <Tooltip
-                contentStyle={{
-                  background: "#12121e",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  color: "#f0f0ff",
-                }}
-                labelStyle={{ color: "#f0f0ff" }}
-              />
-              <Bar dataKey="value" fill="#5a9cf8" radius={[6, 6, 0, 0]} stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
-            </RechartsBarChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function UserVoiceRankingChart() {
-  const params = useMemo(() => ({}), []);
-  const { data, loading, error } = useAnalyticsQuery("user_voice_ranking", params);
-
-  if (loading) return <Skeleton className="h-[320px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
-
-  const chartData = ((data ?? []) as Array<{ user_name?: string; voice_hours?: number | string }>)
-    .slice(0, 25)
-    .map((row) => ({ name: row.user_name ?? "unknown", value: toNumber(row.voice_hours) }));
-
-  return (
-    <Card className={CARD}>
-      <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">
-          ユーザ別ボイス時間ランキング（上位25）
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="h-[260px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <RechartsBarChart data={chartData} margin={{ top: 10, right: 10, left: 8, bottom: 30 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.16)" strokeDasharray="0" />
-              <XAxis
-                dataKey="name"
-                tick={{ fill: "#f0f0ff", fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-                interval={0}
-                angle={-25}
-                textAnchor="end"
-                height={54}
-              />
-              <YAxis tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={false} tickLine={false} width={48} />
-              <Tooltip
-                contentStyle={{
-                  background: "#12121e",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  color: "#f0f0ff",
-                }}
-                labelStyle={{ color: "#f0f0ff" }}
-              />
-              <Bar dataKey="value" fill="#5a9cf8" radius={[6, 6, 0, 0]} stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
-            </RechartsBarChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function UserMessageRankingChart() {
-  const params = useMemo(() => ({}), []);
-  const { data, loading, error } = useAnalyticsQuery("user_messages_ranking", params);
-
-  if (loading) return <Skeleton className="h-[320px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
-
-  const chartData = ((data ?? []) as Array<{ user_name?: string; message_count?: number | string }>)
-    .slice(0, 25)
-    .map((row) => ({ name: row.user_name ?? "unknown", value: toNumber(row.message_count) }));
-
-  return (
-    <Card className={CARD}>
-      <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">
-          ユーザ別メッセージランキング（上位25）
-        </CardTitle>
-      </CardHeader>
-      <CardContent>
-        <div className="h-[260px] w-full">
-          <ResponsiveContainer width="100%" height="100%">
-            <RechartsBarChart data={chartData} margin={{ top: 10, right: 10, left: 8, bottom: 30 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.16)" strokeDasharray="0" />
-              <XAxis
-                dataKey="name"
-                tick={{ fill: "#f0f0ff", fontSize: 11 }}
-                axisLine={false}
-                tickLine={false}
-                interval={0}
-                angle={-25}
-                textAnchor="end"
-                height={54}
-              />
-              <YAxis tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={false} tickLine={false} width={48} />
-              <Tooltip
-                contentStyle={{
-                  background: "#12121e",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  color: "#f0f0ff",
-                }}
-                labelStyle={{ color: "#f0f0ff" }}
-              />
-              <Bar dataKey="value" fill="#7c5cd6" radius={[6, 6, 0, 0]} stroke="rgba(255,255,255,0.2)" strokeWidth={1} />
-            </RechartsBarChart>
-          </ResponsiveContainer>
-        </div>
-      </CardContent>
-    </Card>
-  );
-}
-
-function HeatmapCard({
-  title,
-  valueField,
-  valueFormatter,
-}: {
-  title: string;
-  valueField: "message_count_aggregated" | "voice_duration_hours";
-  valueFormatter: (value: number) => string;
-}) {
-  const { filters } = useFilterContext();
-  const params = useMemo(() => ({}), []);
-  const { data, loading, error } = useAnalyticsQuery("activity_by_weekday_hour", params);
-
-  if (loading) {
-    return <Skeleton className="h-[440px] w-full" />;
-  }
-  if (error) {
-    return <p className="text-sm text-destructive">{error}</p>;
-  }
-
-  const matrix = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0));
-  const rows = (data ?? []) as WeekdayHourRow[];
-
-  for (const row of rows) {
-    if (!matchGuild(row.guild_name, filters.guildName)) continue;
-    const weekday = WEEKDAY_ORDER.indexOf(row.weekday_display ?? "");
-    const hour = Math.max(0, Math.min(23, Math.floor(toNumber(row.hour_slot))));
-    if (weekday < 0) continue;
-    matrix[weekday][hour] += toNumber(row[valueField]);
-  }
-
-  const maxValue = Math.max(1, ...matrix.flat());
-  const isMessage = valueField === "message_count_aggregated";
-
-  return (
-    <Card className={CARD}>
-      <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">{title}</CardTitle>
-        <CardDescription className="text-sm text-[#9898b8]">
-          曜日・時間帯別のアクティビティ分布
-        </CardDescription>
-      </CardHeader>
-      <CardContent className="overflow-x-auto">
-        <div className="mx-auto min-w-[720px] max-w-[860px]">
-          <div className="mb-2 grid grid-cols-[84px_repeat(24,minmax(18px,1fr))] gap-[4px] text-[10px] text-[#7a7a9a]">
-            <div />
-            {Array.from({ length: 24 }, (_, hour) => (
-              <div key={hour} className="text-center">
-                {hour % 2 === 0 ? hour : ""}
-              </div>
-            ))}
-          </div>
-          <div className="space-y-[4px]">
-            {WEEKDAY_ORDER.map((day, dayIndex) => (
-              <div
-                key={day}
-                className="grid grid-cols-[84px_repeat(24,minmax(18px,1fr))] items-stretch gap-[4px]"
-              >
-                <div className="flex items-center text-xs font-medium text-[#b2b2d0]">{day}</div>
-                {matrix[dayIndex].map((value, hour) => {
-                  const intensity = value / maxValue;
-                  const hasValue = value > 0;
-                  const alpha = hasValue ? 0.15 + intensity * 0.85 : 0;
-                  const bgColor = hasValue
-                    ? isMessage
-                      ? `rgba(124, 92, 214, ${alpha})`
-                      : `rgba(90, 156, 248, ${alpha})`
-                    : "#1e1f30";
-                  return (
-                    <div
-                      key={`${day}-${hour}`}
-                      title={`${day} ${hour}:00 — ${valueFormatter(value)}`}
-                      className="h-8 rounded-[4px] border border-white/[0.07] text-center text-[9px] leading-8 text-white/85"
-                      style={{ backgroundColor: bgColor }}
-                    >
-                      {hasValue && intensity > 0.35 ? valueFormatter(value) : ""}
-                    </div>
-                  );
-                })}
-              </div>
-            ))}
-          </div>
         </div>
       </CardContent>
     </Card>
@@ -709,48 +499,59 @@ function RankingTableCard({
   nameColumnLabel,
   valueColumnLabel,
   valueFormatter,
+  maxRows = DEFAULT_MAX_RANK_ROWS,
+  showAllToggle = true,
+  description,
 }: {
   title: string;
   rows: Array<{ name: string; value: number }>;
   nameColumnLabel: string;
   valueColumnLabel: string;
   valueFormatter: (value: number) => string;
+  maxRows?: number;
+  showAllToggle?: boolean;
+  description?: string;
 }) {
+  const [showAll, setShowAll] = useState(false);
+  const displayRows = showAll ? rows : rows.slice(0, maxRows);
+  const canToggle = showAllToggle && rows.length > maxRows;
+
   return (
     <Card className={CARD}>
       <CardHeader>
         <CardTitle className="text-base font-semibold text-[#f0f0ff]">{title}</CardTitle>
+        {description ? <CardDescription className="text-xs text-[#9898b8]">{description}</CardDescription> : null}
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
         <table className="w-full min-w-[460px] text-sm">
           <thead>
             <tr className="border-b border-white/[0.07] text-left">
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-                Rank
-              </th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-                {nameColumnLabel}
-              </th>
-              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-                {valueColumnLabel}
-              </th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-[#9898b8]">Rank</th>
+              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-[#9898b8]">{nameColumnLabel}</th>
+              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-widest text-[#9898b8]">{valueColumnLabel}</th>
             </tr>
           </thead>
           <tbody>
-            {rows.map((row, index) => (
-              <tr
-                key={`${row.name}-${index}`}
-                className="border-b border-white/[0.05] transition-colors hover:bg-[#1e2035]"
-              >
+            {displayRows.map((row, index) => (
+              <tr key={`${row.name}-${index}`} className="border-b border-white/[0.05] transition-colors hover:bg-[#1e2035]">
                 <td className="px-5 py-3 tabular-nums text-[#5a5a7a]">{index + 1}</td>
                 <td className="px-5 py-3 text-[#f0f0ff]">{row.name}</td>
-                <td className="px-5 py-3 text-right font-semibold tabular-nums text-[#f0f0ff]">
-                  {valueFormatter(row.value)}
-                </td>
+                <td className="px-5 py-3 text-right font-semibold tabular-nums text-[#f0f0ff]">{valueFormatter(row.value)}</td>
               </tr>
             ))}
           </tbody>
         </table>
+        {canToggle ? (
+          <div className="border-t border-white/[0.06] px-4 py-3">
+            <button
+              type="button"
+              onClick={() => setShowAll((prev) => !prev)}
+              className="rounded-md border border-white/20 bg-white/5 px-3 py-1 text-xs text-[#cfcfeb] transition hover:bg-white/10"
+            >
+              {showAll ? `上位${maxRows}件に戻す` : "すべて表示"}
+            </button>
+          </div>
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -763,12 +564,10 @@ function UserMessageTable() {
   if (loading) return <Skeleton className="h-[300px] w-full" />;
   if (error) return <p className="text-sm text-destructive">{error}</p>;
 
-  const rows = ((data ?? []) as Array<{ user_name?: string; message_count?: number | string }>).map(
-    (row) => ({
-      name: row.user_name || "unknown",
-      value: toNumber(row.message_count),
-    }),
-  );
+  const rows = ((data ?? []) as Array<{ user_name?: string; message_count?: number | string }>).map((row) => ({
+    name: row.user_name || "unknown",
+    value: toNumber(row.message_count),
+  }));
 
   return (
     <RankingTableCard
@@ -777,6 +576,9 @@ function UserMessageTable() {
       nameColumnLabel="ユーザ"
       valueColumnLabel="メッセージ数"
       valueFormatter={(value) => value.toLocaleString()}
+      description="カテゴリフィルタは未対応（このカードは全体集計）"
+      maxRows={DEFAULT_MAX_RANK_ROWS}
+      showAllToggle
     />
   );
 }
@@ -793,11 +595,12 @@ function ChannelActivityTable() {
   const rows = (data ?? []) as Array<{
     guild_name?: string;
     channel_name?: string;
+    category_name?: string;
     message_count_aggregated?: number | string;
   }>;
   for (const row of rows) {
     if (!matchGuild(row.guild_name, filters.guildName)) continue;
-    if (!matchChannel(row.channel_name, filters.channelName)) continue;
+    if (!matchCategory(row.category_name, filters.categoryNames)) continue;
     const key = row.channel_name || "unknown";
     merged.set(key, (merged.get(key) ?? 0) + toNumber(row.message_count_aggregated));
   }
@@ -813,6 +616,8 @@ function ChannelActivityTable() {
       nameColumnLabel="チャンネル"
       valueColumnLabel="メッセージ数"
       valueFormatter={(value) => value.toLocaleString()}
+      maxRows={DEFAULT_MAX_RANK_ROWS}
+      showAllToggle
     />
   );
 }
@@ -830,8 +635,8 @@ export default function App() {
 
   return (
     <FilterContext.Provider value={filterContext}>
-      <div className="min-h-screen px-6 py-8 lg:px-10">
-        <div className="mx-auto w-full max-w-[1500px]">
+      <div className="min-h-screen px-4 py-6 lg:px-6">
+        <div className="mx-auto w-full max-w-[1760px]">
           <header className="mb-8">
             <p className="text-xs font-medium uppercase tracking-widest text-[#5a5a7a]">Community Analytics</p>
             <h1 className="mt-1 text-3xl font-semibold text-[#f0f0ff]">JEDAI Discord</h1>
@@ -852,54 +657,36 @@ export default function App() {
               >
                 告知ジェネレータ
               </TabsTrigger>
-              <TabsTrigger
-                value="voice"
-                className="rounded-none border-b-2 border-transparent px-5 py-2.5 text-sm font-medium text-[#9898b8] transition-colors data-[state=active]:border-[#7c5cd6] data-[state=active]:bg-transparent data-[state=active]:text-[#f0f0ff]"
-              >
-                ボイス分析
-              </TabsTrigger>
             </TabsList>
 
-            <TabsContent value="dashboard" className="space-y-4">
+            <TabsContent value="dashboard" className="space-y-6">
               <FilterBar />
+              <SectionHeading eyebrow="Summary" title="サマリー KPI" description="選択した期間・Guild・カテゴリで集計" />
               <KpiStrip />
-
+              <SectionHeading eyebrow="Trend" title="トレンド" />
               <div className="grid gap-4 xl:grid-cols-2">
                 <MessageTrendCard />
                 <VoiceTrendCard />
               </div>
-
-              <HeatmapCard
-                title="曜日 × 時間帯　メッセージ数ヒートマップ"
-                valueField="message_count_aggregated"
-                valueFormatter={(value) => value.toLocaleString()}
-              />
-              <HeatmapCard
-                title="曜日 × 時間帯　ボイス使用時間ヒートマップ"
-                valueField="voice_duration_hours"
-                valueFormatter={(value) => value.toFixed(1)}
-              />
-
+              <VoiceHeatmapCard />
+              <SectionHeading eyebrow="Channel" title="チャンネル分析" />
               <div className="grid gap-4 xl:grid-cols-2">
-                <WeekdayMessageBarChart />
-                <WeekdayVoiceChart />
+                <ChannelActivityTable />
+                <VoiceChannelHhiCard />
               </div>
-              <div className="grid gap-4 xl:grid-cols-2">
-                <UserMessageRankingChart />
-                <UserVoiceRankingChart />
-              </div>
+              <SectionHeading eyebrow="User" title="ユーザ分析" />
               <div className="grid gap-4 xl:grid-cols-2">
                 <UserMessageTable />
-                <ChannelActivityTable />
+                <VoiceLtvRankingTable />
+              </div>
+              <div className="grid gap-4 xl:grid-cols-2">
+                <VoiceChurnRiskTable />
+                <VoiceSessionScatterCard />
               </div>
             </TabsContent>
 
             <TabsContent value="announcement" className="mt-0">
               <AnnouncementPanel />
-            </TabsContent>
-
-            <TabsContent value="voice" className="space-y-4">
-              <VoiceAnalyticsTab />
             </TabsContent>
           </Tabs>
         </div>

@@ -5,6 +5,24 @@ import type { SQLTypeMarker, SQLStringMarker, SQLNumberMarker, SQLBooleanMarker,
 
 declare module "@databricks/appkit-ui/react" {
   interface QueryRegistry {
+    activity_by_category_daily: {
+        name: "activity_by_category_daily";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** Represents the date when the message was sent, which is helpful for aggregating messages by day and analyzing trends over time. */
+          activity_date: string;
+          /** The name of the guild, serving as an essential reference for identifying and differentiating between various guilds. */
+          guild_name: string;
+          /** Contains the name of the category, providing a descriptive label for the unique identifier. */
+          category_name: string;
+          /** @sqlType BIGINT */
+          message_count: number;
+          /** @sqlType DOUBLE */
+          voice_duration_seconds: number;
+          /** @sqlType DOUBLE */
+          voice_duration_hours: number;
+        }>;
+      };
     activity_by_weekday_hour: {
         name: "activity_by_weekday_hour";
         parameters: Record<string, never>;
