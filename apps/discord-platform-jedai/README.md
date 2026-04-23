@@ -24,15 +24,24 @@ npm run build
 npm start
 ```
 
-## ワークスペースへ同期・デプロイ
+## Databricks 内完結デプロイ（Repos 推奨）
 
 ```bash
-databricks sync --watch . /Workspace/Users/cheng.wang@myteam.com/discord-platform-jedai
+# 1) Databricks Repos で本リポジトリをクローン
+#    例: /Workspace/Repos/<your_user>/<your_repo>
+#
+# 2) source-code-path は必ず apps ディレクトリを指す
 databricks apps validate --profile <PROFILE>
 databricks apps deploy discord-platform-jedai \
-  --source-code-path /Workspace/Users/cheng.wang@myteam.com/discord-platform-jedai \
+  --source-code-path /Workspace/Repos/<your_user>/<your_repo>/apps/discord-platform-jedai \
   --profile <PROFILE>
 ```
+
+### ポイント
+
+- この運用では `databricks sync` は不要です（Workspace への反映は Repos の Git 更新で管理）。
+- `source-code-path` はリポジトリのルートではなく、`apps/discord-platform-jedai` まで含めて指定してください。
+- 反映されない場合は、まず Repos 側が最新コミットに更新されているか確認してください。
 
 ## 付録: 権限（アプリ実行プリンシパル）
 
