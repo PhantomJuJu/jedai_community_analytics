@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import { analytics, createApp, getWorkspaceClient, server } from "@databricks/appkit";
+import { analytics, createApp, getExecutionContext, server } from "@databricks/appkit";
 import express from "express";
 import { z } from "zod";
 
@@ -25,7 +25,9 @@ function parseNotebookJobIdFromEnv(): number {
 
 async function runNotebookJobAndWait() {
   const jobId = parseNotebookJobIdFromEnv();
-  const client = getWorkspaceClient();
+  // `getWorkspaceClient` on `@databricks/appkit` is Lakebase's helper and requires a config object;
+  // use the AppKit execution context client (same as analytics plugin).
+  const client = getExecutionContext().client;
 
   const waiter = await client.jobs.runNow({ job_id: jobId });
   const completedRun = (await waiter.wait()) as {

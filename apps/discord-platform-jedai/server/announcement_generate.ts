@@ -1,4 +1,4 @@
-import { getWorkspaceClient } from "@databricks/appkit";
+import { getExecutionContext } from "@databricks/appkit";
 import { z } from "zod";
 
 import { buildFullPrompt, type AnnouncementInput } from "./build_prompt.js";
@@ -52,7 +52,7 @@ export async function generateAnnouncementText(input: AnnouncementGenerateBody):
     maxTokens,
   );
 
-  const client = getWorkspaceClient();
+  const client = getExecutionContext().client;
   const outcome = await runWarehouseStatement(client, warehouseId, sqlText);
 
   if (outcome.error) {
