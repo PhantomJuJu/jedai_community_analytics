@@ -9,7 +9,7 @@ import {
   SelectValue,
 } from "@databricks/appkit-ui/react";
 import { Textarea } from "@databricks/appkit-ui/react";
-import { useState, type FormEvent } from "react";
+import { useState, type FormEvent, type ReactNode } from "react";
 
 const TONE = ["真面目", "おふざけ", "カジュアル"] as const;
 const LENGTH = ["short", "medium", "long"] as const;
@@ -33,16 +33,6 @@ export function AnnouncementPanel() {
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
-  const [jobPending, setJobPending] = useState(false);
-  const [jobError, setJobError] = useState<string | null>(null);
-  const [jobResult, setJobResult] = useState<{
-    jobId: number;
-    runId: number | null;
-    runPageUrl: string | null;
-    lifeCycleState: string;
-    resultState: string;
-    stateMessage: string;
-  } | null>(null);
 
   async function onSubmit(e: FormEvent) {
     e.preventDefault();
@@ -80,54 +70,13 @@ export function AnnouncementPanel() {
       if (!response.ok) {
         throw new Error(payload.error ?? `Request failed (${response.status})`);
       }
+      // Keep a tiny transition so the loading bubble feels deliberate.
+      await new Promise((resolve) => setTimeout(resolve, 600));
       setResult(payload.text ?? "");
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
       setPending(false);
-    }
-  }
-
-  async function onRunNotebookJob() {
-    setJobPending(true);
-    setJobError(null);
-    setJobResult(null);
-    try {
-      const response = await fetch("/api/notebook-job/run", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({}),
-      });
-      let payload: {
-        error?: string;
-        jobId?: number;
-        runId?: number | null;
-        runPageUrl?: string | null;
-        lifeCycleState?: string;
-        resultState?: string;
-        stateMessage?: string;
-      } = {};
-      try {
-        payload = (await response.json()) as typeof payload;
-      } catch {
-        const fallbackText = await response.text().catch(() => "");
-        payload = { error: fallbackText || "Non-JSON response from server" };
-      }
-      if (!response.ok) {
-        throw new Error(payload.error ?? `Request failed (${response.status})`);
-      }
-      setJobResult({
-        jobId: payload.jobId ?? -1,
-        runId: payload.runId ?? null,
-        runPageUrl: payload.runPageUrl ?? null,
-        lifeCycleState: payload.lifeCycleState ?? "UNKNOWN",
-        resultState: payload.resultState ?? "UNKNOWN",
-        stateMessage: payload.stateMessage ?? "",
-      });
-    } catch (err) {
-      setJobError(err instanceof Error ? err.message : String(err));
-    } finally {
-      setJobPending(false);
     }
   }
 
@@ -138,28 +87,13 @@ export function AnnouncementPanel() {
           イベント告知ジェネレータ
         </CardTitle>
         <CardDescription className="text-sm text-[#9898b8]">
-          Notebook{" "}
-          <code className="rounded bg-white/[0.06] px-1 py-0.5 font-mono text-xs text-[#9898b8]">
-            01_few_shot_discord_event_announcement
-          </code>{" "}
-          と同様に、ハイパーパラメータ・
-          <code className="rounded bg-white/[0.06] px-1 py-0.5 font-mono text-xs text-[#9898b8]">
-            Context facts
-          </code>
-          （任意）・リクエストを渡して{" "}
-          <code className="rounded bg-white/[0.06] px-1 py-0.5 font-mono text-xs text-[#9898b8]">
-            ai_query
-          </code>{" "}
-          を実行します。Context を空にすると、サーバーの{" "}
-          <code className="rounded bg-white/[0.06] px-1 py-0.5 font-mono text-xs text-[#9898b8]">
-            EVENT_CONTEXT_FOR_REQUEST
-          </code>{" "}
-          が使われます（未設定なら文脈ブロックなし）。
+          パラメータとリクエストを入力して告知文を生成できます。生成中はチャット風の待機表示に切り替わり、
+          完了後はそのままコピーできます。
         </CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-6">
-          <div className="grid gap-4 xl:grid-cols-2">
+          <div className="grid gap-4 xl:grid-cols-3">
             <Field label="Tone">
               <Select value={tone} onValueChange={setTone}>
                 <SelectTrigger>
@@ -293,67 +227,99 @@ export function AnnouncementPanel() {
           </Button>
         </form>
 
-        {error ? (
-          <p className="mt-4 text-sm text-red-400">{error}</p>
-        ) : null}
-
-        {result !== null ? (
-          <pre className="mt-6 whitespace-pre-wrap rounded-lg border border-white/[0.07] bg-[#0f0f1a] p-5 font-mono text-sm leading-relaxed text-[#f0f0ff]">
-            {result}
-          </pre>
-        ) : null}
-
-        <div className="mt-8 rounded-lg border border-white/[0.07] bg-[#12121e] p-4">
-          <p className="text-sm font-semibold text-[#f0f0ff]">Notebook Job 実行</p>
-          <p className="mt-1 text-xs text-[#9898b8]">
-            `DATABRICKS_NOTEBOOK_JOB_ID` に設定した Job を実行し、完了まで待機します。
-          </p>
-          <Button
-            type="button"
-            onClick={onRunNotebookJob}
-            disabled={jobPending}
-            className="mt-3 bg-[#2f6feb] text-white hover:bg-[#4a82ee] disabled:opacity-50"
-          >
-            {jobPending ? "Job実行中…" : "Notebook Job を実行"}
-          </Button>
-
-          {jobError ? <p className="mt-3 text-sm text-red-400">{jobError}</p> : null}
-
-          {jobResult ? (
-            <div className="mt-3 rounded border border-white/[0.07] bg-[#0f0f1a] p-3 text-xs text-[#d7d7f4]">
-              <p>job_id: {jobResult.jobId}</p>
-              <p>run_id: {jobResult.runId ?? "N/A"}</p>
-              <p>life_cycle_state: {jobResult.lifeCycleState}</p>
-              <p>result_state: {jobResult.resultState}</p>
-              {jobResult.stateMessage ? <p>message: {jobResult.stateMessage}</p> : null}
-              {jobResult.runPageUrl ? (
-                <p className="mt-1">
-                  run page:{" "}
-                  <a
-                    href={jobResult.runPageUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="text-[#7ea8ff] underline underline-offset-2"
-                  >
-                    {jobResult.runPageUrl}
-                  </a>
-                </p>
-              ) : null}
-            </div>
-          ) : null}
+        <div className="mt-8 rounded-xl border border-white/[0.07] bg-[#12121e] p-4">
+          <p className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">Preview</p>
+          <div className="mt-4 space-y-3">
+            <UserBubble text={user_request} />
+            {pending ? <TypingIndicator /> : null}
+            {!pending && error ? <ErrorBubble message={error} /> : null}
+            {!pending && result !== null ? <ResultBubble text={result} /> : null}
+          </div>
         </div>
       </CardContent>
     </Card>
   );
 }
 
-function Field({ label, children }: { label: string; children: React.ReactNode }) {
+function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="space-y-2">
       <Label className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
         {label}
       </Label>
       {children}
+    </div>
+  );
+}
+
+function UserBubble({ text }: { text: string }) {
+  return (
+    <div className="flex justify-end">
+      <div className="max-w-[90%] rounded-2xl rounded-br-sm bg-[#2d2f5f] px-4 py-3 text-sm text-[#f0f0ff]">
+        {text}
+      </div>
+    </div>
+  );
+}
+
+function TypingIndicator() {
+  return (
+    <div className="flex justify-start">
+      <div className="rounded-2xl rounded-bl-sm border border-white/[0.07] bg-[#0f0f1a] px-4 py-3">
+        <div className="flex items-center gap-1">
+          {[0, 1, 2].map((idx) => (
+            <span
+              key={idx}
+              className="h-2 w-2 rounded-full bg-[#9898b8] animate-bounce"
+              style={{ animationDelay: `${idx * 0.15}s` }}
+            />
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function ResultBubble({ text }: { text: string }) {
+  const [copied, setCopied] = useState(false);
+  const [copyError, setCopyError] = useState<string | null>(null);
+
+  async function onCopy() {
+    setCopyError(null);
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2000);
+    } catch {
+      setCopyError("コピーに失敗しました。手動でコピーしてください。");
+    }
+  }
+
+  return (
+    <div className="flex justify-start">
+      <div className="relative w-full max-w-[95%] rounded-2xl rounded-bl-sm border border-white/[0.07] bg-[#0f0f1a] p-4">
+        <Button
+          type="button"
+          onClick={onCopy}
+          className="absolute right-3 top-3 h-7 bg-[#2f6feb] px-2 text-xs text-white hover:bg-[#4a82ee]"
+        >
+          {copied ? "コピー済み" : "コピー"}
+        </Button>
+        <pre className="pr-16 whitespace-pre-wrap font-mono text-sm leading-relaxed text-[#f0f0ff]">
+          {text}
+        </pre>
+        {copyError ? <p className="mt-2 text-xs text-red-400">{copyError}</p> : null}
+      </div>
+    </div>
+  );
+}
+
+function ErrorBubble({ message }: { message: string }) {
+  return (
+    <div className="flex justify-start">
+      <div className="max-w-[95%] rounded-2xl rounded-bl-sm border border-red-500/30 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+        {message}
+      </div>
     </div>
   );
 }
