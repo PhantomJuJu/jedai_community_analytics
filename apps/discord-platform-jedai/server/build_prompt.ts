@@ -59,11 +59,10 @@ export function buildFullPrompt(
       : "";
   return (
     head +
-    context_block +
+    single_combined +
     "\n\n" +
     hyper_block +
-    "\n\n" +
-    single_combined +
+    context_block +
     "\n\n[User request (natural language)]\n" +
     input.user_request.trim() +
     "\n\n" +

@@ -35,7 +35,7 @@ export async function generateAnnouncementText(input: AnnouncementGenerateBody):
 
   const foundationEndpoint =
     process.env.FOUNDATION_MODEL_ENDPOINT ?? "databricks-meta-llama-3-3-70b-instruct";
-  const temperature = Number(process.env.MODEL_TEMPERATURE ?? 0.3);
+  const temperature = Number(process.env.MODEL_TEMPERATURE ?? 0.7);
   const maxTokens = Number(process.env.MODEL_MAX_TOKENS ?? 2048);
 
   const { context_for_request, ...core } = input;

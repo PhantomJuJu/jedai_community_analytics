@@ -96,12 +96,16 @@ export function AnnouncementPanel() {
           <div className="grid gap-4 xl:grid-cols-3">
             <Field label="Tone">
               <Select value={tone} onValueChange={setTone}>
-                <SelectTrigger>
+                <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
                   {TONE.map((t) => (
-                    <SelectItem key={t} value={t}>
+                    <SelectItem
+                      key={t}
+                      value={t}
+                      className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
+                    >
                       {t}
                     </SelectItem>
                   ))}
@@ -110,12 +114,16 @@ export function AnnouncementPanel() {
             </Field>
             <Field label="Length">
               <Select value={length} onValueChange={setLength}>
-                <SelectTrigger>
+                <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
                   {LENGTH.map((t) => (
-                    <SelectItem key={t} value={t}>
+                    <SelectItem
+                      key={t}
+                      value={t}
+                      className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
+                    >
                       {t}
                     </SelectItem>
                   ))}
@@ -124,12 +132,16 @@ export function AnnouncementPanel() {
             </Field>
             <Field label="Formality">
               <Select value={formality} onValueChange={setFormality}>
-                <SelectTrigger>
+                <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
                   {FORMALITY.map((t) => (
-                    <SelectItem key={t} value={t}>
+                    <SelectItem
+                      key={t}
+                      value={t}
+                      className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
+                    >
                       {t}
                     </SelectItem>
                   ))}
@@ -138,12 +150,16 @@ export function AnnouncementPanel() {
             </Field>
             <Field label="Emoji density">
               <Select value={emoji_density} onValueChange={setEmojiDensity}>
-                <SelectTrigger>
+                <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
                   {EMOJI.map((t) => (
-                    <SelectItem key={t} value={t}>
+                    <SelectItem
+                      key={t}
+                      value={t}
+                      className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
+                    >
                       {t}
                     </SelectItem>
                   ))}
@@ -152,12 +168,16 @@ export function AnnouncementPanel() {
             </Field>
             <Field label="Structure">
               <Select value={structure} onValueChange={setStructure}>
-                <SelectTrigger>
+                <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
                   {STRUCTURE.map((t) => (
-                    <SelectItem key={t} value={t}>
+                    <SelectItem
+                      key={t}
+                      value={t}
+                      className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
+                    >
                       {t}
                     </SelectItem>
                   ))}
@@ -166,12 +186,16 @@ export function AnnouncementPanel() {
             </Field>
             <Field label="CTA strength">
               <Select value={cta_strength} onValueChange={setCtaStrength}>
-                <SelectTrigger>
+                <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
                   <SelectValue />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
                   {CTA.map((t) => (
-                    <SelectItem key={t} value={t}>
+                    <SelectItem
+                      key={t}
+                      value={t}
+                      className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
+                    >
                       {t}
                     </SelectItem>
                   ))}

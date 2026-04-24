@@ -98,6 +98,30 @@
         stroke: rgba(255, 255, 255, 0.18) !important;
         stroke-width: 0.8px !important;
       }
+
+      /* Keep AppKit/Radix select controls readable on dark backgrounds. */
+      button[role="combobox"],
+      [data-radix-select-trigger] {
+        color: #f0f0ff !important;
+        background-color: #1a1b2e !important;
+        border-color: rgba(255, 255, 255, 0.07) !important;
+      }
+
+      [role="listbox"],
+      [data-radix-select-content] {
+        color: #f0f0ff !important;
+        background-color: #1a1b2e !important;
+        border-color: rgba(255, 255, 255, 0.07) !important;
+      }
+
+      [role="option"],
+      [data-radix-select-item] {
+        color: #f0f0ff !important;
+      }
+
+      button[role="combobox"] svg {
+        color: #f0f0ff !important;
+      }
     </style>
   </head>
   <body>
