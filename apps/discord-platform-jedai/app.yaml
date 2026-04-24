@@ -10,3 +10,5 @@ env:
     value: "0.3"
   - name: MODEL_MAX_TOKENS
     value: "2048"
+  - name: DATABRICKS_NOTEBOOK_JOB_ID
+    value: "840656734130932"

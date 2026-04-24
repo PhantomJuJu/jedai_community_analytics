@@ -1,13 +1,64 @@
 import "dotenv/config";
 
-import { analytics, createApp, server } from "@databricks/appkit";
+import { analytics, createApp, getWorkspaceClient, server } from "@databricks/appkit";
 import express from "express";
+import { z } from "zod";
 
 import {
   announcementInputSchema,
   generateAnnouncementText,
 } from "./announcement_generate.js";
-import { notebookJobRunInputSchema, runNotebookJobAndWait } from "./notebook_job_run.js";
+
+const notebookJobRunInputSchema = z.object({}).passthrough();
+
+function parseNotebookJobIdFromEnv(): number {
+  const raw = process.env.DATABRICKS_NOTEBOOK_JOB_ID?.trim();
+  if (!raw) {
+    throw new Error("DATABRICKS_NOTEBOOK_JOB_ID is not set");
+  }
+  const parsed = Number(raw);
+  if (!Number.isFinite(parsed) || parsed <= 0) {
+    throw new Error("DATABRICKS_NOTEBOOK_JOB_ID must be a positive number");
+  }
+  return parsed;
+}
+
+async function runNotebookJobAndWait() {
+  const jobId = parseNotebookJobIdFromEnv();
+  const client = getWorkspaceClient();
+
+  const waiter = await client.jobs.runNow({ job_id: jobId });
+  const completedRun = (await waiter.wait()) as {
+    run_id?: number;
+    run_page_url?: string;
+    state?: {
+      life_cycle_state?: string;
+      result_state?: string;
+      state_message?: string;
+    };
+  };
+
+  const runId = completedRun.run_id ?? waiter.run_id ?? null;
+  const lifeCycleState = completedRun.state?.life_cycle_state ?? "UNKNOWN";
+  const resultState = completedRun.state?.result_state ?? "UNKNOWN";
+  const stateMessage = completedRun.state?.state_message ?? "";
+  const runPageUrl = completedRun.run_page_url ?? null;
+
+  if (resultState !== "SUCCESS") {
+    throw new Error(
+      `Notebook job failed: life_cycle_state=${lifeCycleState}, result_state=${resultState}${stateMessage ? `, message=${stateMessage}` : ""}`,
+    );
+  }
+
+  return {
+    jobId,
+    runId,
+    runPageUrl,
+    lifeCycleState,
+    resultState,
+    stateMessage,
+  };
+}
 
 const appkit = await createApp({
   plugins: [server({ autoStart: false }), analytics({})],
