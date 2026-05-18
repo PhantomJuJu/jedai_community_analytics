@@ -8,6 +8,13 @@ import {
   announcementInputSchema,
   generateAnnouncementText,
 } from "./announcement_generate.js";
+import {
+  cancelDiscordPost,
+  createScheduledDiscordPost,
+  discordScheduleInputSchema,
+  getDiscordConfig,
+  listDiscordPosts,
+} from "./discord_api.js";
 
 const notebookJobRunInputSchema = z.object({}).passthrough();
 
@@ -81,6 +88,64 @@ appkit.server.extend((app) => {
     } catch (err) {
       const message = err instanceof Error ? err.message : String(err);
       res.status(500).json({ error: message });
+    }
+  });
+
+  app.post("/api/discord/schedule", async (req, res) => {
+    if (!getDiscordConfig()) {
+      res.status(503).json({
+        error: "Discord scheduling is not configured (DISCORD_API_URL, DISCORD_GUILD_ID)",
+      });
+      return;
+    }
+    const parsed = discordScheduleInputSchema.safeParse(req.body);
+    if (!parsed.success) {
+      res.status(400).json({ error: "Invalid input", details: parsed.error.flatten() });
+      return;
+    }
+    try {
+      const result = await createScheduledDiscordPost(parsed.data);
+      res.status(201).json({ postId: result.post_id });
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(502).json({ error: message });
+    }
+  });
+
+  app.get("/api/discord/posts", async (_req, res) => {
+    if (!getDiscordConfig()) {
+      res.status(503).json({
+        error: "Discord scheduling is not configured (DISCORD_API_URL, DISCORD_GUILD_ID)",
+      });
+      return;
+    }
+    try {
+      const posts = await listDiscordPosts();
+      res.json(posts);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(502).json({ error: message });
+    }
+  });
+
+  app.delete("/api/discord/posts/:postId", async (req, res) => {
+    if (!getDiscordConfig()) {
+      res.status(503).json({
+        error: "Discord scheduling is not configured (DISCORD_API_URL, DISCORD_GUILD_ID)",
+      });
+      return;
+    }
+    const postId = typeof req.params.postId === "string" ? req.params.postId.trim() : "";
+    if (!postId) {
+      res.status(400).json({ error: "postId is required" });
+      return;
+    }
+    try {
+      const result = await cancelDiscordPost(postId);
+      res.json(result);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : String(err);
+      res.status(502).json({ error: message });
     }
   });
 

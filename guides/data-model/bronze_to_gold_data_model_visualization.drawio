@@ -1,0 +1,143 @@
+<mxfile host="app.diagrams.net" agent="Mozilla/5.0" version="24.7.17">
+  <diagram id="bronze-gold-model" name="Bronze-Gold Model">
+    <mxGraphModel dx="1680" dy="980" grid="1" gridSize="10" guides="1" tooltips="1" connect="1" arrows="1" fold="1" page="1" pageScale="1" pageWidth="2200" pageHeight="1400" math="0" shadow="0">
+      <root>
+        <mxCell id="0"/>
+        <mxCell id="1" parent="0"/>
+
+        <mxCell id="bronzeBox" value="Bronze Layer" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#999999;fillColor=#fff2cc;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="40" y="80" width="360" height="860" as="geometry"/>
+        </mxCell>
+        <mxCell id="silverBox" value="Silver Layer" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#999999;fillColor=#fff2cc;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="460" y="80" width="540" height="860" as="geometry"/>
+        </mxCell>
+        <mxCell id="goldBox" value="Gold Layer" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#999999;fillColor=#fff2cc;fontStyle=1;" vertex="1" parent="1">
+          <mxGeometry x="1060" y="80" width="560" height="860" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="b_messages" value="discord_messages_raw" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#6c8ebf;fillColor=#dae8fc;" vertex="1" parent="1">
+          <mxGeometry x="90" y="260" width="260" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="b_voice" value="discord_voice_activity_raw" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#6c8ebf;fillColor=#dae8fc;" vertex="1" parent="1">
+          <mxGeometry x="90" y="430" width="260" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="b_channels" value="discord_channels_raw" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#6c8ebf;fillColor=#dae8fc;" vertex="1" parent="1">
+          <mxGeometry x="90" y="620" width="260" height="64" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="s_message" value="message_fact" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#9673a6;fillColor=#e1d5e7;" vertex="1" parent="1">
+          <mxGeometry x="530" y="180" width="230" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_voice" value="voice_chat_fact" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#9673a6;fillColor=#e1d5e7;" vertex="1" parent="1">
+          <mxGeometry x="530" y="290" width="230" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_guild" value="guild_dim" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#9673a6;fillColor=#e1d5e7;" vertex="1" parent="1">
+          <mxGeometry x="530" y="420" width="230" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_user" value="user_dim" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#9673a6;fillColor=#e1d5e7;" vertex="1" parent="1">
+          <mxGeometry x="530" y="530" width="230" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_channel" value="channel_dim" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#9673a6;fillColor=#e1d5e7;" vertex="1" parent="1">
+          <mxGeometry x="530" y="640" width="230" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="s_category" value="category_dim" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#9673a6;fillColor=#e1d5e7;" vertex="1" parent="1">
+          <mxGeometry x="780" y="640" width="170" height="64" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="g_weekhour" value="activity_by_weekday_hour" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#b85450;fillColor=#f8cecc;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="140" width="390" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="g_daily" value="activity_daily" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#b85450;fillColor=#f8cecc;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="250" width="390" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="g_user" value="user_activity" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#b85450;fillColor=#f8cecc;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="360" width="390" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="g_channel" value="channel_activity" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#b85450;fillColor=#f8cecc;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="500" width="390" height="64" as="geometry"/>
+        </mxCell>
+        <mxCell id="g_voice_summary" value="user_voice_summary" style="rounded=0;whiteSpace=wrap;html=1;strokeColor=#b85450;fillColor=#f8cecc;" vertex="1" parent="1">
+          <mxGeometry x="1130" y="610" width="390" height="64" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e1" edge="1" parent="1" source="b_channels" target="s_guild" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.3;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e2" edge="1" parent="1" source="b_channels" target="s_channel" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.6;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e3" edge="1" parent="1" source="b_channels" target="s_category" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.9;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e4" edge="1" parent="1" source="b_messages" target="s_message" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.45;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e5" edge="1" parent="1" source="b_messages" target="s_user" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.7;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e6" edge="1" parent="1" source="b_voice" target="s_voice" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.35;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e7" edge="1" parent="1" source="b_voice" target="s_user" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.65;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e8" edge="1" parent="1" source="s_message" target="g_weekhour" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.2;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e9" edge="1" parent="1" source="s_voice" target="g_weekhour" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.2;entryX=0;entryY=0.35;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e10" edge="1" parent="1" source="s_message" target="g_daily" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.45;entryX=0;entryY=0.4;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e11" edge="1" parent="1" source="s_voice" target="g_daily" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.6;entryX=0;entryY=0.6;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e12" edge="1" parent="1" source="s_message" target="g_user" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.7;entryX=0;entryY=0.35;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e13" edge="1" parent="1" source="s_voice" target="g_user" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.85;entryX=0;entryY=0.65;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e14" edge="1" parent="1" source="s_message" target="g_channel" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=1;entryX=0;entryY=0.35;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e15" edge="1" parent="1" source="s_voice" target="g_channel" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=1;entryX=0;entryY=0.55;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e16" edge="1" parent="1" source="s_voice" target="g_voice_summary" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=1;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+
+        <mxCell id="e17" edge="1" parent="1" source="s_guild" target="g_weekhour" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.1;entryX=0;entryY=0.7;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e18" edge="1" parent="1" source="s_guild" target="g_daily" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.3;entryX=0;entryY=0.8;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e19" edge="1" parent="1" source="s_guild" target="g_user" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.5;entryX=0;entryY=0.8;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e20" edge="1" parent="1" source="s_guild" target="g_channel" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.7;entryX=0;entryY=0.8;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e21" edge="1" parent="1" source="s_guild" target="g_voice_summary" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.9;entryX=0;entryY=0.75;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e22" edge="1" parent="1" source="s_user" target="g_user" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.4;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e23" edge="1" parent="1" source="s_user" target="g_voice_summary" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.7;entryX=0;entryY=0.3;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e24" edge="1" parent="1" source="s_channel" target="g_channel" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.4;entryX=0;entryY=0.5;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+        <mxCell id="e25" edge="1" parent="1" source="s_category" target="g_channel" style="edgeStyle=none;curved=0;rounded=0;html=1;endArrow=block;endFill=1;exitX=1;exitY=0.6;entryX=0;entryY=0.65;">
+          <mxGeometry relative="1" as="geometry"/>
+        </mxCell>
+      </root>
+    </mxGraphModel>
+  </diagram>
+</mxfile>

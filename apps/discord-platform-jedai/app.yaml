@@ -12,3 +12,9 @@ env:
     value: "2048"
   - name: DATABRICKS_NOTEBOOK_JOB_ID
     value: "840656734130932"
+  - name: DISCORD_API_URL
+    value: "http://184.32.233.89:8080"
+  - name: DISCORD_API_SECRET
+    valueFrom: discord-api-secret
+  - name: DISCORD_GUILD_ID
+    value: "000000000000000000"

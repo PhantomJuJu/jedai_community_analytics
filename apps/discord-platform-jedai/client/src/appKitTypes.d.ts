@@ -119,6 +119,18 @@ declare module "@databricks/appkit-ui/react" {
           voice_duration_seconds_aggregated: number;
         }>;
       };
+    discord_channels_list: {
+        name: "discord_channels_list";
+        parameters: Record<string, never>;
+        result: Array<{
+          /** A unique identifier for the channel, critical for distinguishing between different channels within a guild. */
+          channel_id: string;
+          /** The name of the channel, which provides insight into the topic or discussions that may occur within that space. */
+          channel_name: string;
+          /** A unique identifier for the category that the channel belongs to, which can be used to group channels and analyze their organization within the guild. */
+          category_id: number;
+        }>;
+      };
     user_activity: {
         name: "user_activity";
         parameters: Record<string, never>;

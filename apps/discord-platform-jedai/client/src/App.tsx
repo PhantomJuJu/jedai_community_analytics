@@ -16,7 +16,18 @@ import {
   TabsTrigger,
 } from "@databricks/appkit-ui/react";
 import { useAnalyticsQuery } from "@databricks/appkit-ui/react";
-import { createContext, useContext, useMemo, useRef, useState, type Dispatch, type SetStateAction } from "react";
+import {
+  createContext,
+  useContext,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type Dispatch,
+  type MutableRefObject,
+  type RefObject,
+  type SetStateAction,
+} from "react";
 import {
   CartesianGrid,
   Line,
@@ -111,12 +122,48 @@ function SectionHeading({
 
 function FilterBar() {
   const { filters, setFilters, resetFilters } = useFilterContext();
-  const params = useMemo(() => ({}), []);
   const [isCategoryOpen, setIsCategoryOpen] = useState(false);
+  const [refreshKey, setRefreshKey] = useState(0);
   const categoryPanelRef = useRef<HTMLDivElement | null>(null);
+  const hasInitializedMonth = useRef(false);
 
-  const { data: channelData } = useAnalyticsQuery("channel_activity", params);
-  const { data: trendData } = useAnalyticsQuery("activity_daily_message_trend", params);
+  return (
+    <FilterBarContent
+      key={refreshKey}
+      filters={filters}
+      setFilters={setFilters}
+      resetFilters={resetFilters}
+      isCategoryOpen={isCategoryOpen}
+      setIsCategoryOpen={setIsCategoryOpen}
+      categoryPanelRef={categoryPanelRef}
+      hasInitializedMonth={hasInitializedMonth}
+      onRefresh={() => setRefreshKey((prev) => prev + 1)}
+    />
+  );
+}
+
+function FilterBarContent({
+  filters,
+  setFilters,
+  resetFilters,
+  isCategoryOpen,
+  setIsCategoryOpen,
+  categoryPanelRef,
+  hasInitializedMonth,
+  onRefresh,
+}: {
+  filters: FilterState;
+  setFilters: Dispatch<SetStateAction<FilterState>>;
+  resetFilters: () => void;
+  isCategoryOpen: boolean;
+  setIsCategoryOpen: Dispatch<SetStateAction<boolean>>;
+  categoryPanelRef: RefObject<HTMLDivElement | null>;
+  hasInitializedMonth: MutableRefObject<boolean>;
+  onRefresh: () => void;
+}) {
+  const params = useMemo(() => ({}), []);
+  const { data: channelData, loading: channelLoading } = useAnalyticsQuery("channel_activity", params);
+  const { data: trendData, loading: trendLoading } = useAnalyticsQuery("activity_daily_message_trend", params);
 
   const channelRows = (channelData ?? []) as Array<{
     guild_name?: string;
@@ -129,6 +176,16 @@ function FilterBar() {
       [...new Set(trendRows.map((row) => (row.activity_date ?? "").slice(0, 7)).filter((month) => month.length === 7))].sort(),
     [trendRows],
   );
+
+  useEffect(() => {
+    if (monthOptions.length > 0 && !hasInitializedMonth.current && filters.selectedMonth === "") {
+      hasInitializedMonth.current = true;
+      setFilters((prev) => ({
+        ...prev,
+        selectedMonth: monthOptions[monthOptions.length - 1] ?? "",
+      }));
+    }
+  }, [monthOptions, filters.selectedMonth, setFilters, hasInitializedMonth]);
 
   const guildOptions = useMemo(
     () =>
@@ -159,15 +216,25 @@ function FilterBar() {
             </CardDescription>
             <CardTitle className="mt-2 text-base font-semibold text-[#f0f0ff]">表示条件</CardTitle>
           </div>
-          {hasActiveFilters ? (
+          <div className="flex items-center gap-2">
             <button
               type="button"
-              onClick={resetFilters}
-              className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs text-[#d0d0f4] transition-colors hover:bg-white/10 hover:text-[#f0f0ff]"
+              onClick={onRefresh}
+              disabled={channelLoading || trendLoading}
+              className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs text-[#d0d0f4] transition-colors hover:bg-white/10 hover:text-[#f0f0ff] disabled:cursor-not-allowed disabled:opacity-50"
             >
-              クリア
+              {channelLoading || trendLoading ? "更新中…" : "更新"}
             </button>
-          ) : null}
+            {hasActiveFilters ? (
+              <button
+                type="button"
+                onClick={resetFilters}
+                className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs text-[#d0d0f4] transition-colors hover:bg-white/10 hover:text-[#f0f0ff]"
+              >
+                クリア
+              </button>
+            ) : null}
+          </div>
         </div>
       </CardHeader>
       <CardContent className="grid gap-3 pb-5 md:grid-cols-3">

@@ -8,8 +8,10 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@databricks/appkit-ui/react";
+import { Skeleton } from "@databricks/appkit-ui/react";
 import { Textarea } from "@databricks/appkit-ui/react";
-import { useState, type FormEvent, type ReactNode } from "react";
+import { useAnalyticsQuery } from "@databricks/appkit-ui/react";
+import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 
 const TONE = ["真面目", "おふざけ", "カジュアル"] as const;
 const LENGTH = ["short", "medium", "long"] as const;
@@ -260,6 +262,10 @@ export function AnnouncementPanel() {
             {!pending && result !== null ? <ResultBubble text={result} /> : null}
           </div>
         </div>
+
+        {!pending && result !== null && result.length > 0 ? (
+          <DiscordScheduleSection content={result} />
+        ) : null}
       </CardContent>
     </Card>
   );
@@ -343,6 +349,278 @@ function ErrorBubble({ message }: { message: string }) {
     <div className="flex justify-start">
       <div className="max-w-[95%] rounded-2xl rounded-bl-sm border border-red-500/30 bg-red-950/30 px-4 py-3 text-sm text-red-300">
         {message}
+      </div>
+    </div>
+  );
+}
+
+type ScheduledPostRow = {
+  post_id: string;
+  channel_id: string;
+  content: string;
+  scheduled_at: string;
+  created_by: string;
+};
+
+type PostsResponse = {
+  scheduled: ScheduledPostRow[];
+  recurring: Array<{
+    post_id: string;
+    channel_id: string;
+    content: string;
+    frequency: string;
+    post_time: string;
+  }>;
+};
+
+function defaultScheduledLocalValue(): string {
+  const date = new Date();
+  date.setMinutes(date.getMinutes() + 5);
+  return toDatetimeLocalValue(date);
+}
+
+function toDatetimeLocalValue(date: Date): string {
+  const pad = (value: number) => String(value).padStart(2, "0");
+  return `${date.getFullYear()}-${pad(date.getMonth() + 1)}-${pad(date.getDate())}T${pad(date.getHours())}:${pad(date.getMinutes())}`;
+}
+
+function localDatetimeToIso(localValue: string): string {
+  const parsed = new Date(localValue);
+  if (Number.isNaN(parsed.getTime())) {
+    throw new Error("送信日時の形式が不正です");
+  }
+  return parsed.toISOString();
+}
+
+function formatScheduledAtJst(isoValue: string): string {
+  const normalized = isoValue.replace("Z", "+00:00");
+  const date = new Date(normalized);
+  if (Number.isNaN(date.getTime())) {
+    return isoValue;
+  }
+  return date.toLocaleString("ja-JP", { timeZone: "Asia/Tokyo", hour12: false });
+}
+
+function DiscordScheduleSection({ content }: { content: string }) {
+  const params = useMemo(() => ({}), []);
+  const { data: channelData, loading: channelsLoading, error: channelsError } = useAnalyticsQuery(
+    "discord_channels_list",
+    params,
+  );
+
+  const channelRows = (channelData ?? []) as Array<{ channel_id?: string; channel_name?: string }>;
+  const channelOptions = useMemo(
+    () =>
+      channelRows
+        .filter((row) => row.channel_id)
+        .map((row) => ({
+          id: String(row.channel_id),
+          name: row.channel_name?.trim() || String(row.channel_id),
+        }))
+        .sort((a, b) => a.name.localeCompare(b.name, "ja")),
+    [channelRows],
+  );
+
+  const [channelId, setChannelId] = useState("");
+  const [scheduledAtLocal, setScheduledAtLocal] = useState(defaultScheduledLocalValue);
+  const [schedulePending, setSchedulePending] = useState(false);
+  const [scheduleError, setScheduleError] = useState<string | null>(null);
+  const [scheduleSuccess, setScheduleSuccess] = useState<string | null>(null);
+  const [posts, setPosts] = useState<PostsResponse | null>(null);
+  const [postsLoading, setPostsLoading] = useState(false);
+  const [postsError, setPostsError] = useState<string | null>(null);
+  const [cancelPendingId, setCancelPendingId] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (!channelId && channelOptions.length > 0) {
+      setChannelId(channelOptions[0]?.id ?? "");
+    }
+  }, [channelId, channelOptions]);
+
+  const loadPosts = useCallback(async () => {
+    setPostsLoading(true);
+    setPostsError(null);
+    try {
+      const response = await fetch("/api/discord/posts");
+      const payload = (await response.json()) as PostsResponse & { error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? `一覧の取得に失敗しました (${response.status})`);
+      }
+      setPosts(payload);
+    } catch (err) {
+      setPostsError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setPostsLoading(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    void loadPosts();
+  }, [loadPosts]);
+
+  async function onSchedule() {
+    if (!channelId) {
+      setScheduleError("送信先チャンネルを選択してください");
+      return;
+    }
+    setSchedulePending(true);
+    setScheduleError(null);
+    setScheduleSuccess(null);
+    try {
+      const scheduledAt = localDatetimeToIso(scheduledAtLocal);
+      const response = await fetch("/api/discord/schedule", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          channelId,
+          content,
+          scheduledAt,
+        }),
+      });
+      const payload = (await response.json()) as { postId?: string; error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? `予約に失敗しました (${response.status})`);
+      }
+      setScheduleSuccess(`予約を登録しました（ID: ${payload.postId ?? "—"}）`);
+      await loadPosts();
+    } catch (err) {
+      setScheduleError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setSchedulePending(false);
+    }
+  }
+
+  async function onCancel(postId: string) {
+    setCancelPendingId(postId);
+    setScheduleError(null);
+    try {
+      const response = await fetch(`/api/discord/posts/${encodeURIComponent(postId)}`, {
+        method: "DELETE",
+      });
+      const payload = (await response.json()) as { cancelled?: boolean; error?: string };
+      if (!response.ok) {
+        throw new Error(payload.error ?? `キャンセルに失敗しました (${response.status})`);
+      }
+      if (!payload.cancelled) {
+        throw new Error("該当する予約が見つかりませんでした");
+      }
+      await loadPosts();
+    } catch (err) {
+      setScheduleError(err instanceof Error ? err.message : String(err));
+    } finally {
+      setCancelPendingId(null);
+    }
+  }
+
+  const scheduledRows = posts?.scheduled ?? [];
+
+  return (
+    <div className="mt-6 rounded-xl border border-white/[0.07] bg-[#12121e] p-4">
+      <p className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">Discord へ送信</p>
+      <p className="mt-1 text-xs text-[#6a6a8a]">
+        生成した文章を EC2 上の Discord Bot に予約登録します。指定時刻に自動投稿されます。
+      </p>
+
+      <div className="mt-4 grid gap-4 md:grid-cols-2">
+        <Field label="送信先チャンネル">
+          {channelsLoading ? (
+            <Skeleton className="h-9 w-full" />
+          ) : channelsError ? (
+            <p className="text-xs text-red-400">{channelsError}</p>
+          ) : channelOptions.length === 0 ? (
+            <p className="text-xs text-[#9898b8]">チャンネル一覧がありません（discord_channels_raw を確認）</p>
+          ) : (
+            <Select value={channelId} onValueChange={setChannelId}>
+              <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
+                <SelectValue placeholder="チャンネルを選択" />
+              </SelectTrigger>
+              <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
+                {channelOptions.map((channel) => (
+                  <SelectItem
+                    key={channel.id}
+                    value={channel.id}
+                    className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
+                  >
+                    #{channel.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          )}
+        </Field>
+
+        <Field label="送信日時">
+          <input
+            type="datetime-local"
+            value={scheduledAtLocal}
+            onChange={(event) => setScheduledAtLocal(event.target.value)}
+            className="h-9 w-full rounded-md border border-white/[0.07] bg-[#12121e] px-3 text-sm text-[#f0f0ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c5cd6]/50"
+          />
+        </Field>
+      </div>
+
+      <Button
+        type="button"
+        onClick={() => void onSchedule()}
+        disabled={schedulePending || channelsLoading || channelOptions.length === 0}
+        className="mt-4 bg-[#2f6feb] text-white hover:bg-[#4a82ee] disabled:opacity-50"
+      >
+        {schedulePending ? "予約中…" : "Discord に予約送信"}
+      </Button>
+
+      {scheduleError ? <p className="mt-2 text-xs text-red-400">{scheduleError}</p> : null}
+      {scheduleSuccess ? <p className="mt-2 text-xs text-emerald-400">{scheduleSuccess}</p> : null}
+
+      <div className="mt-6 border-t border-white/[0.07] pt-4">
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">予約一覧</p>
+          <button
+            type="button"
+            onClick={() => void loadPosts()}
+            disabled={postsLoading}
+            className="rounded-md border border-white/20 bg-white/5 px-2 py-1 text-xs text-[#cfcfeb] hover:bg-white/10 disabled:opacity-50"
+          >
+            {postsLoading ? "読込中…" : "再読込"}
+          </button>
+        </div>
+
+        {postsError ? <p className="mt-2 text-xs text-red-400">{postsError}</p> : null}
+
+        {postsLoading && !posts ? <Skeleton className="mt-3 h-20 w-full" /> : null}
+
+        {!postsLoading && scheduledRows.length === 0 ? (
+          <p className="mt-2 text-xs text-[#9898b8]">予約中の投稿はありません</p>
+        ) : null}
+
+        {scheduledRows.length > 0 ? (
+          <ul className="mt-3 space-y-2">
+            {scheduledRows.map((row) => (
+              <li
+                key={row.post_id}
+                className="rounded-lg border border-white/[0.07] bg-[#0f0f1a] px-3 py-2 text-xs text-[#d7d7f4]"
+              >
+                <div className="flex flex-wrap items-center justify-between gap-2">
+                  <span>
+                    <span className="font-mono text-[#9898b8]">{row.post_id.slice(0, 8)}…</span>
+                    {" · "}
+                    #{channelOptions.find((ch) => ch.id === row.channel_id)?.name ?? row.channel_id}
+                    {" · "}
+                    {formatScheduledAtJst(row.scheduled_at)} JST
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => void onCancel(row.post_id)}
+                    disabled={cancelPendingId === row.post_id}
+                    className="rounded border border-red-500/40 px-2 py-0.5 text-red-300 hover:bg-red-950/40 disabled:opacity-50"
+                  >
+                    {cancelPendingId === row.post_id ? "取消中…" : "キャンセル"}
+                  </button>
+                </div>
+                <p className="mt-1 line-clamp-2 text-[#9898b8]">{row.content}</p>
+              </li>
+            ))}
+          </ul>
+        ) : null}
       </div>
     </div>
   );
