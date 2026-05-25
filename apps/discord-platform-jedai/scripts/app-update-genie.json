@@ -1,0 +1,23 @@
+{
+  "user_api_scopes": [
+    "dashboards.genie"
+  ],
+  "resources": [
+    {
+      "name": "discord-api-secret",
+      "secret": {
+        "key": "api-secret",
+        "permission": "READ",
+        "scope": "jedai-discord"
+      }
+    },
+    {
+      "name": "genie-space",
+      "genie_space": {
+        "name": "genie-space",
+        "space_id": "01f157e0a288162daf5ccd0c431f19b7",
+        "permission": "CAN_RUN"
+      }
+    }
+  ]
+}

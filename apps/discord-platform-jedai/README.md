@@ -66,7 +66,9 @@ databricks apps deploy discord-platform-jedai \
 
 - `DATABRICKS_GENIE_SPACE_ID` に AI/BI Genie Space の ID を設定すると、**Genie** タブで自然言語チャットとクエリ結果の可視化が利用できます。
 - Space ID は Databricks の Genie Space 画面 → **About** タブで確認できます。
-- アプリ実行プリンシパルに、対象 Genie Space への利用権限が必要です。
+- **User authorization** に OAuth スコープ `dashboards.genie` が必要です（未設定だと `does not have required scopes: genie`）。アプリの **Authorization** でスコープを追加し、Genie Space を `genie_space` リソースとしてバインドしてください。例: `scripts/app-update-genie.json` を `databricks apps update` に渡す。
+- スコープ追加後は、**アプリを再デプロイ**し、ブラウザで **再ログイン**（またはシークレットウィンドウ）してユーザー同意を取り直してください。
+- アプリ実行プリンシパルと、利用ユーザー双方に、対象 Genie Space への **CAN RUN** 以上の権限が必要です。
 - 未設定の場合は Genie タブに設定手順のみ表示されます（ダッシュボードの既存ウィジェットはそのまま利用可能）。
 
 ### Notebook Job 実行（Apps から）
