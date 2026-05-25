@@ -11,7 +11,6 @@
     "start": "node build/server.mjs",
     "typegen": "npx @databricks/appkit generate-types . client/src/appKitTypes.d.ts",
     "test:e2e": "playwright test",
-    "test:unit": "tsx --test server/build_prompt.test.ts",
     "validate:local": "npm run build && npm run test:e2e"
   },
   "dependencies": {

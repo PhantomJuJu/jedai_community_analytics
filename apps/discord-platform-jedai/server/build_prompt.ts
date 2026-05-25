@@ -12,7 +12,6 @@ export function buildHyperparameterBlock(
     "short: 〜100字（1〜2文） / medium: 101〜300字（2〜5文） / long: 301字〜（補足・背景あり）";
   const emoji_help = "なし=0個 / 少なめ=1〜2個 / 普通=3〜5個 / 多め=6個以上";
   return `[Hyperparameter Definitions — この生成の指定値]
-- このブロックは [User request] 内の文体・長さ・構成・絵文字・CTA の記述より優先する
 - Tone: ${tone}
 - Length: ${length} (${length_help})
 - Formality: ${formality}
@@ -60,10 +59,9 @@ export function buildFullPrompt(
       : "";
   return (
     head +
+    single_combined +
     "\n\n" +
     hyper_block +
-    "\n\n" +
-    single_combined +
     context_block +
     "\n\n[User request (natural language)]\n" +
     input.user_request.trim() +
