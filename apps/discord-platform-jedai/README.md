@@ -62,6 +62,13 @@ databricks apps deploy discord-platform-jedai \
 
 任意: イベント文脈をサーバのみで渡す場合は `app.yaml` の `env` に `EVENT_CONTEXT_FOR_REQUEST` を追加してください。
 
+### Genie（自然言語クエリ）
+
+- `DATABRICKS_GENIE_SPACE_ID` に AI/BI Genie Space の ID を設定すると、**Genie** タブで自然言語チャットとクエリ結果の可視化が利用できます。
+- Space ID は Databricks の Genie Space 画面 → **About** タブで確認できます。
+- アプリ実行プリンシパルに、対象 Genie Space への利用権限が必要です。
+- 未設定の場合は Genie タブに設定手順のみ表示されます（ダッシュボードの既存ウィジェットはそのまま利用可能）。
+
 ### Notebook Job 実行（Apps から）
 
 - `app.yaml` または `.env` に `DATABRICKS_NOTEBOOK_JOB_ID=<job_id>` を設定します。

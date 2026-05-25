@@ -27,14 +27,99 @@ const DEFAULT_MAX_RANK_ROWS = 10;
 
 const WEEKDAY_ORDER = ["1. 月", "2. 火", "3. 水", "4. 木", "5. 金", "6. 土", "7. 日"];
 
+const WEEKDAY_LABEL_JA = ["月", "火", "水", "木", "金", "土", "日"] as const;
+
 function toNumber(value: number | string | undefined): number {
   return Number(value ?? 0);
+}
+
+function formatHourLabel(hourSlot: number): string {
+  const hour = Math.max(0, Math.min(23, Math.floor(hourSlot)));
+  return `${String(hour).padStart(2, "0")}:00`;
+}
+
+/** データ上の weekday (0=月 … 6=日) を JS getDay (0=日 … 6=土) に変換 */
+function dataWeekdayToJsDay(weekdayIndex: number): number {
+  return weekdayIndex === 6 ? 0 : weekdayIndex + 1;
+}
+
+function daysUntilWeekday(weekdayIndex: number): number {
+  const targetJsDay = dataWeekdayToJsDay(weekdayIndex);
+  const todayJsDay = new Date().getDay();
+  let delta = (targetJsDay - todayJsDay + 7) % 7;
+  if (delta === 0) {
+    delta = 7;
+  }
+  return delta;
+}
+
+function upcomingWeekdayPhrase(weekdayIndex: number): string {
+  const label = WEEKDAY_LABEL_JA[weekdayIndex] ?? "該当";
+  const days = daysUntilWeekday(weekdayIndex);
+  if (days <= 6) {
+    return `次の${label}曜`;
+  }
+  return `来週の${label}曜`;
+}
+
+type HeatmapPeakInsight = {
+  headline: string;
+  detail: string | null;
+};
+
+function buildHeatmapPeakInsight(rows: WeekdayHourDominantRow[]): HeatmapPeakInsight {
+  const activeRows = rows.filter((row) => toNumber(row.voice_dominant_score) > 0);
+  if (activeRows.length === 0) {
+    return {
+      headline: "十分な活動データがまだありません。期間やフィルタを広げて、もう一度確認してください。",
+      detail: null,
+    };
+  }
+
+  let bestRow = activeRows[0]!;
+  for (const row of activeRows) {
+    if (toNumber(row.voice_dominant_score) > toNumber(bestRow.voice_dominant_score)) {
+      bestRow = row;
+    }
+  }
+
+  const weekdayIndex = WEEKDAY_ORDER.indexOf(bestRow.weekday_display ?? "");
+  const hour = Math.max(0, Math.min(23, Math.floor(toNumber(bestRow.hour_slot))));
+  const weekdayPhrase =
+    weekdayIndex >= 0 ? upcomingWeekdayPhrase(weekdayIndex) : (bestRow.weekday_display ?? "該当曜日");
+  const timeLabel = formatHourLabel(hour);
+  const score = toNumber(bestRow.voice_dominant_score);
+  const voiceHours = toNumber(bestRow.voice_duration_hours);
+  const guildCount = new Set(
+    activeRows
+      .filter((row) => {
+        const rowWeekday = WEEKDAY_ORDER.indexOf(row.weekday_display ?? "");
+        const rowHour = Math.floor(toNumber(row.hour_slot));
+        return rowWeekday === weekdayIndex && rowHour === hour;
+      })
+      .map((row) => row.guild_name)
+      .filter(Boolean),
+  ).size;
+
+  const headline = `${weekdayPhrase}の ${timeLabel} 頃が最も人が集まりやすく、イベントや告知を実施するのに適しています。`;
+  const detailParts = [
+    `合成スコア ${score.toFixed(2)}`,
+    voiceHours > 0 ? `ボイス時間 ${voiceHours.toFixed(1)} 時間` : null,
+    guildCount > 0 ? `${guildCount} ギルドで活動シグナル` : null,
+  ].filter((part): part is string => Boolean(part));
+
+  return {
+    headline,
+    detail: detailParts.length > 0 ? detailParts.join(" · ") : null,
+  };
 }
 
 type WeekdayHourDominantRow = {
   weekday_display?: string;
   hour_slot?: number | string;
   voice_dominant_score?: number | string;
+  voice_duration_hours?: number | string;
+  guild_name?: string;
 };
 
 function RankingTableCard({
@@ -302,6 +387,7 @@ export function VoiceHeatmapCard() {
 
   const maxValue = Math.max(1e-6, ...matrix.flat());
   const valueFormatter = (value: number) => value.toFixed(2);
+  const peakInsight = buildHeatmapPeakInsight(rows);
 
   return (
     <Card className={CARD}>
@@ -312,6 +398,17 @@ export function VoiceHeatmapCard() {
         <CardDescription className="text-sm text-[#9898b8]">
           ギルド内最大値で正規化した合成指標（セルはギルド間で最大値を表示）
         </CardDescription>
+        <div
+          className="mt-4 rounded-xl border border-[#7c5cd6]/35 bg-[#7c5cd6]/10 px-4 py-3"
+          role="note"
+          aria-label="ヒートマップの示唆"
+        >
+          <p className="text-xs font-semibold uppercase tracking-widest text-[#b8a8f0]">インサイト</p>
+          <p className="mt-2 text-sm leading-relaxed text-[#e8e8ff]">{peakInsight.headline}</p>
+          {peakInsight.detail ? (
+            <p className="mt-1.5 text-xs text-[#9898b8]">{peakInsight.detail}</p>
+          ) : null}
+        </div>
       </CardHeader>
       <CardContent className="overflow-x-auto">
         <div className="w-full min-w-[720px]">

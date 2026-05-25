@@ -1,6 +1,6 @@
 import "dotenv/config";
 
-import { analytics, createApp, getExecutionContext, server } from "@databricks/appkit";
+import { analytics, createApp, genie, getExecutionContext, server } from "@databricks/appkit";
 import express from "express";
 import { z } from "zod";
 
@@ -69,8 +69,14 @@ async function runNotebookJobAndWait() {
   };
 }
 
+const genieSpaceId = process.env.DATABRICKS_GENIE_SPACE_ID?.trim();
+
 const appkit = await createApp({
-  plugins: [server({ autoStart: false }), analytics({})],
+  plugins: [
+    server({ autoStart: false }),
+    analytics({}),
+    ...(genieSpaceId ? [genie({ spaces: { default: genieSpaceId } })] : []),
+  ],
 });
 
 appkit.server.extend((app) => {
@@ -147,6 +153,13 @@ appkit.server.extend((app) => {
       const message = err instanceof Error ? err.message : String(err);
       res.status(502).json({ error: message });
     }
+  });
+
+  app.get("/api/genie/config", (_req, res) => {
+    res.json({
+      configured: Boolean(genieSpaceId),
+      alias: "default",
+    });
   });
 
   app.post("/api/notebook-job/run", async (req, res) => {
