@@ -163,7 +163,7 @@ function RankingTableCard({
         <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>{title}</CardTitle>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
-        <table className="w-full min-w-[460px] text-sm">
+        <table className="w-full min-w-[460px] text-base">
           <thead className="bg-slate-50">
             <tr className={`border-b ${TABLE_BORDER} text-left`}>
               <th className={`px-5 py-3 ${TABLE_HEAD}`}>Rank</th>
@@ -191,7 +191,7 @@ function RankingTableCard({
             <button
               type="button"
               onClick={() => setShowAll((prev) => !prev)}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-base text-slate-700 transition hover:bg-slate-50"
             >
               {showAll ? `上位${maxRows}件に戻す` : "すべて表示"}
             </button>
@@ -223,7 +223,7 @@ export function VoiceChurnRiskTable() {
   const [showAll, setShowAll] = useState(false);
 
   if (loading) return <Skeleton className="h-[420px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
+  if (error) return <p className="text-base text-destructive">{error}</p>;
 
   const rows = (data ?? []) as Array<{
     user_name?: string;
@@ -238,12 +238,12 @@ export function VoiceChurnRiskTable() {
     <Card className={CARD}>
       <CardHeader>
         <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>最近ボイス参加が減っているユーザー</CardTitle>
-        <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+        <CardDescription className={`${TEXT_MUTED}`}>
           最後にボイスに参加してからの日数と、離脱の可能性が高い順に表示します。
         </CardDescription>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
-        <table className="w-full min-w-[560px] text-sm">
+        <table className="w-full min-w-[560px] text-base">
           <thead className="bg-slate-50">
             <tr className={`border-b ${TABLE_BORDER} text-left`}>
               <th className={`px-5 py-3 ${TABLE_HEAD}`}>Rank</th>
@@ -269,7 +269,7 @@ export function VoiceChurnRiskTable() {
                 </td>
                 <td className="px-5 py-3">
                   <span
-                    className={`inline-block rounded-md border px-2.5 py-0.5 text-sm font-medium ${churnLevelBadgeClass(
+                    className={`inline-block rounded-md border px-2.5 py-0.5 text-base font-medium ${churnLevelBadgeClass(
                       row.churn_risk_level ?? "",
                     )}`}
                   >
@@ -285,7 +285,7 @@ export function VoiceChurnRiskTable() {
             <button
               type="button"
               onClick={() => setShowAll((prev) => !prev)}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-base text-slate-700 transition hover:bg-slate-50"
             >
               {showAll ? `上位${DEFAULT_MAX_RANK_ROWS}件に戻す` : "すべて表示"}
             </button>
@@ -308,7 +308,7 @@ export function VoiceWeeklyKpiStrip() {
       </div>
     );
   }
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
+  if (error) return <p className="text-base text-destructive">{error}</p>;
 
   const row = (data ?? [])[0] as
     | {
@@ -320,7 +320,7 @@ export function VoiceWeeklyKpiStrip() {
     | undefined;
 
   if (!row) {
-    return <p className={`text-sm ${TEXT_MUTED}`}>週次 KPI 未取得</p>;
+    return <p className={`${TEXT_MUTED}`}>週次 KPI 未取得</p>;
   }
 
   const thisWeek = toNumber(row.this_week_voice_hours);
@@ -352,7 +352,7 @@ export function VoiceWeeklyKpiStrip() {
           <CardTitle className={`mt-2 text-3xl font-semibold tabular-nums ${TEXT_TITLE}`}>
             {pct === null ? "—" : `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`}
           </CardTitle>
-          <p className={`mt-1 text-sm ${TEXT_SUBTLE}`}>
+          <p className={`mt-1 ${TEXT_SUBTLE}`}>
             前週: {lastWeek.toFixed(2)}h · signal: {signal}
           </p>
         </CardHeader>
@@ -366,7 +366,7 @@ export function VoiceHeatmapCard() {
   const { data, loading, error } = useAnalyticsQuery("voice_active_timeslots", params);
 
   if (loading) return <Skeleton className="h-[440px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
+  if (error) return <p className="text-base text-destructive">{error}</p>;
 
   const matrix = Array.from({ length: 7 }, () => Array.from({ length: 24 }, () => 0));
   const rows = (data ?? []) as WeekdayHourDominantRow[];
@@ -387,7 +387,7 @@ export function VoiceHeatmapCard() {
     <Card className={CARD}>
       <CardHeader>
         <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>イベントを開催しやすい曜日と時間</CardTitle>
-        <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+        <CardDescription className={`${TEXT_MUTED}`}>
           ボイス活動が特に多い曜日・時間帯を色の濃さで表示します。告知やイベントの候補日時の参考にできます。
         </CardDescription>
         <div
@@ -396,9 +396,9 @@ export function VoiceHeatmapCard() {
           aria-label="ヒートマップの示唆"
         >
           <p className={`${LABEL_UPPER} text-blue-700`}>インサイト</p>
-          <p className={`mt-2 text-sm leading-relaxed ${TEXT_BODY}`}>{peakInsight.headline}</p>
+          <p className={`mt-2 text-base leading-relaxed ${TEXT_BODY}`}>{peakInsight.headline}</p>
           {peakInsight.detail ? (
-            <p className={`mt-1.5 text-sm ${TEXT_MUTED}`}>{peakInsight.detail}</p>
+            <p className={`mt-1.5 ${TEXT_MUTED}`}>{peakInsight.detail}</p>
           ) : null}
         </div>
       </CardHeader>
@@ -418,7 +418,7 @@ export function VoiceHeatmapCard() {
                 key={day}
                 className="grid grid-cols-[84px_repeat(24,minmax(18px,1fr))] items-stretch gap-[4px]"
               >
-                <div className={`flex items-center text-sm font-medium ${TEXT_BODY}`}>{day}</div>
+                <div className={`flex items-center text-base font-medium ${TEXT_BODY}`}>{day}</div>
                 {matrix[dayIndex].map((value, hour) => {
                   const intensity = value / maxValue;
                   const hasValue = value > 0;
@@ -428,7 +428,7 @@ export function VoiceHeatmapCard() {
                     <div
                       key={`${day}-${hour}`}
                       title={`${day} ${hour}:00 — ${valueFormatter(value)}`}
-                      className="h-8 rounded border border-slate-200 text-center text-[10px] leading-8 text-slate-800"
+                      className="h-8 rounded border border-slate-200 text-center text-xs leading-8 text-slate-800"
                       style={{ backgroundColor: bgColor }}
                     >
                       {hasValue && intensity > 0.35 ? valueFormatter(value) : ""}
@@ -456,7 +456,7 @@ export function VoiceSessionScatterCard() {
   const { data, loading, error } = useAnalyticsQuery("voice_session_segment", params);
 
   if (loading) return <Skeleton className="h-[400px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
+  if (error) return <p className="text-base text-destructive">{error}</p>;
 
   const raw = (data ?? []) as Array<{
     user_name?: string;
@@ -477,7 +477,7 @@ export function VoiceSessionScatterCard() {
     <Card className={`${CARD} chart-readable`}>
       <CardHeader>
         <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>継続的に参加しているユーザーの分布</CardTitle>
-        <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+        <CardDescription className={`${TEXT_MUTED}`}>
           横軸は1回あたりの平均参加時間（分）、縦軸は参加した週数です。点線は全体の中央値です。
         </CardDescription>
       </CardHeader>
@@ -490,9 +490,9 @@ export function VoiceSessionScatterCard() {
                 type="number"
                 dataKey="avg_session_minutes"
                 name="平均(分)"
-                tick={{ fill: CHART_AXIS, fontSize: 12 }}
+                tick={{ fill: CHART_AXIS, fontSize: 14 }}
               />
-              <YAxis type="number" dataKey="active_weeks" name="稼働週" tick={{ fill: CHART_AXIS, fontSize: 12 }} />
+              <YAxis type="number" dataKey="active_weeks" name="稼働週" tick={{ fill: CHART_AXIS, fontSize: 14 }} />
               <ZAxis range={[60, 60]} />
               <Tooltip
                 cursor={{ strokeDasharray: "3 3" }}
@@ -519,7 +519,7 @@ export function VoiceLtvRankingTable() {
   const { data, loading, error } = useAnalyticsQuery("voice_ltv_ranking", params);
 
   if (loading) return <Skeleton className="h-[380px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
+  if (error) return <p className="text-base text-destructive">{error}</p>;
 
   const rows = ((data ?? []) as Array<{ user_name?: string; voice_ltv_score?: number | string }>).map((row) => ({
     name: row.user_name || "unknown",
@@ -544,7 +544,7 @@ export function VoiceChannelHhiCard() {
   const { data, loading, error } = useAnalyticsQuery("voice_channel_hhi", params);
 
   if (loading) return <Skeleton className="h-[400px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
+  if (error) return <p className="text-base text-destructive">{error}</p>;
 
   const rows = (data ?? []) as Array<{
     channel_name?: string;
@@ -570,13 +570,13 @@ export function VoiceChannelHhiCard() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
             <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>ボイス利用が集中しているチャンネル</CardTitle>
-            <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+            <CardDescription className={`${TEXT_MUTED}`}>
               ボイス利用時間の割合が大きいチャンネル上位20件と、全体の集中度指標です。
             </CardDescription>
           </div>
           <div className="text-right">
             <p className={`text-2xl font-semibold tabular-nums ${TEXT_TITLE}`}>{hhi.toFixed(0)}</p>
-            <span className="mt-1 inline-block rounded-md border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-sm text-slate-600">
+            <span className="mt-1 inline-block rounded-md border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-base text-slate-600">
               {status}
             </span>
           </div>
@@ -587,12 +587,12 @@ export function VoiceChannelHhiCard() {
           <ResponsiveContainer width="100%" height="100%">
             <RechartsBarChart data={chartData} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
               <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
-              <XAxis type="number" tick={{ fill: CHART_AXIS, fontSize: 11 }} unit="%" />
+              <XAxis type="number" tick={{ fill: CHART_AXIS, fontSize: 13 }} unit="%" />
               <YAxis
                 type="category"
                 dataKey="name"
                 width={120}
-                tick={{ fill: CHART_AXIS, fontSize: 11 }}
+                tick={{ fill: CHART_AXIS, fontSize: 13 }}
                 interval={0}
               />
               <Tooltip contentStyle={CHART_TOOLTIP} formatter={(v: number) => [`${v.toFixed(2)}%`, "シェア"]} />

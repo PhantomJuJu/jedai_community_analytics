@@ -51,6 +51,7 @@ databricks apps deploy discord-platform-jedai \
 - この運用では `databricks sync` は不要です（Workspace への反映は Repos の Git 更新で管理）。
 - `source-code-path` はリポジトリのルートではなく、`apps/discord-platform-jedai` まで含めて指定してください。
 - 反映されない場合は、まず Repos 側が最新コミットに更新されているか確認してください。
+- **注意**: `/Workspace/Users/.../discord-platform-jedai-deploy` は Repos と自動同期されません。Git 更新後は必ず Repos パス（上記）から `apps deploy` してください。
 
 ## 付録: 権限（アプリ実行プリンシパル）
 
@@ -75,7 +76,7 @@ databricks apps deploy discord-platform-jedai \
     --profile apps-deploy \
     --json @scripts/app-update-genie.json
   databricks apps deploy discord-platform-jedai \
-    --source-code-path /Workspace/Users/kazuki.date@myteam.com/discord-platform-jedai-deploy \
+    --source-code-path /Workspace/Repos/cheng.wang@myteam.com/jedai_pj/apps/discord-platform-jedai \
     --profile apps-deploy
   ```
 - スコープ追加後はユーザーが **シークレットで再ログイン**（古い同意トークンは `genie` スコープなしのまま）

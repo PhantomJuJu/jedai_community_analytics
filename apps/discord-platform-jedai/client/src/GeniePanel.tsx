@@ -4,10 +4,10 @@ import {
   CardDescription,
   CardHeader,
   CardTitle,
-  GenieChat,
   Skeleton,
 } from "@databricks/appkit-ui/react";
 import { useEffect, useState } from "react";
+import { GenieAgentChat } from "./GenieAgentChat.js";
 import { CARD, TEXT_BODY, TEXT_MUTED, TEXT_TITLE } from "./theme";
 
 type GenieConfigResponse = {
@@ -53,16 +53,16 @@ export function GeniePanel() {
       <Card className={CARD}>
         <CardHeader>
           <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>Genie アシスタント</CardTitle>
-          <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+          <CardDescription className={`${TEXT_MUTED}`}>
             Databricks AI/BI Genie Space が未設定のため、チャットは利用できません。
           </CardDescription>
         </CardHeader>
-        <CardContent className={`space-y-3 text-sm ${TEXT_BODY}`}>
+        <CardContent className={`space-y-3 ${TEXT_BODY}`}>
           <p>
             自然言語でコミュニティ指標を質問し、SQL と可視化結果を Genie から取得できます。利用するには
             Genie Space ID を設定してください。
           </p>
-          <ul className={`list-inside list-disc space-y-1 text-sm ${TEXT_MUTED}`}>
+          <ul className={`list-inside list-disc space-y-1 ${TEXT_MUTED}`}>
             <li>
               ローカル: <code className="rounded bg-slate-100 px-1 text-slate-800">.env</code> に{" "}
               <code className="rounded bg-slate-100 px-1 text-slate-800">DATABRICKS_GENIE_SPACE_ID</code> を追加
@@ -80,26 +80,21 @@ export function GeniePanel() {
             </li>
             <li>反映後に再デプロイ。Space ID は Genie Space の About タブからコピー</li>
           </ul>
-          {error ? <p className="text-sm text-red-600">{error}</p> : null}
+          {error ? <p className="text-base text-red-600">{error}</p> : null}
         </CardContent>
       </Card>
     );
   }
 
+  const basePath = config.basePath ?? "/api/genie-sp";
+
   return (
-    <div className="space-y-4">
-      <Card className={`${CARD} overflow-hidden`}>
-        <CardContent className="p-0">
-          <div className="h-[min(72vh,720px)] min-h-[480px] w-full">
-            <GenieChat
-              alias={config.alias}
-              basePath="/api/genie-sp"
-              placeholder="コミュニティデータについて質問してください…"
-              className="h-full"
-            />
-          </div>
-        </CardContent>
-      </Card>
-    </div>
+    <Card className={`${CARD} overflow-hidden`}>
+      <CardContent className="p-0">
+        <div className="h-[min(72vh,720px)] min-h-[480px] w-full">
+          <GenieAgentChat alias={config.alias} basePath={basePath} className="h-full" />
+        </div>
+      </CardContent>
+    </Card>
   );
 }

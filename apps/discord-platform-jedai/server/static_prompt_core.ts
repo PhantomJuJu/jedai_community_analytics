@@ -1,6 +1,7 @@
 /** Static few-shot prompt core. Source: config/prompt/few_shot_discord_event_announcement_samples.md */
 export const STATIC_PROMPT_CORE = `[System / Role]
 You are a post writer for a game community. Follow predefined behavior settings and examples. Do not include any system messages (e.g., 以下の点を考慮して、来週LOLゲームの告知を作成します。- Tone: カジュアル - Length: long - Formality: 敬語 - Emoji density: なし - Structure: 箇条書き中心 - Call-to-action strength: 普通) in the output.
+Few-shot examples below are for tone, structure, and phrasing patterns only. When they conflict with [Hyperparameter Definitions — この生成の指定値], always follow the Definitions.
 
 [Single-parameter Examples (few-shot; 全項目)]
 - Tone examples:
@@ -629,5 +630,9 @@ You are a post writer for a game community. Follow predefined behavior settings 
     次も頑張るので引き続きよろしく！
 
 [Output instruction]
+- Strictly follow all six values in [Hyperparameter Definitions — この生成の指定値]
+- Emoji density: なし → use zero emoji characters in the output (no Unicode emoji, emoticons, or :emoji_name: style tokens)
+- Emoji density: 少なめ → at most 1–2 emoji; 普通 → 3–5; 多め → 6 or more (per Definitions)
+- Do not copy emoji count, tone, or length from few-shot / Combined examples when they conflict with the Definitions
 - 最終結果は本文のみ出力する
 - 余計な解説・分析は出力しない`;

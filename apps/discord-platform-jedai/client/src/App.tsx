@@ -138,8 +138,8 @@ function SectionHeading({
   return (
     <div className="mb-1 mt-1">
       <p className={LABEL_UPPER}>{eyebrow}</p>
-      <h2 className={`mt-1 text-lg font-semibold ${TEXT_TITLE}`}>{title}</h2>
-      {description ? <p className={`mt-1 text-sm ${TEXT_MUTED}`}>{description}</p> : null}
+      <h2 className={`mt-1 text-xl font-semibold ${TEXT_TITLE}`}>{title}</h2>
+      {description ? <p className={`mt-1 text-base ${TEXT_MUTED}`}>{description}</p> : null}
     </div>
   );
 }
@@ -243,7 +243,7 @@ function FilterBarContent({
               type="button"
               onClick={onRefresh}
               disabled={channelLoading || trendLoading}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-base font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {channelLoading || trendLoading ? "更新中…" : "更新"}
             </button>
@@ -251,7 +251,7 @@ function FilterBarContent({
               <button
                 type="button"
                 onClick={resetFilters}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-base font-medium text-slate-700 transition-colors hover:bg-slate-50"
               >
                 クリア
               </button>
@@ -270,7 +270,7 @@ function FilterBarContent({
             <button
               type="button"
               onClick={() => setFilters((prev) => ({ ...prev, selectedMonth: "" }))}
-              className={`rounded-md border px-3 py-1.5 text-sm transition ${
+              className={`rounded-md border px-3 py-1.5 text-base transition ${
                 filters.selectedMonth === "" ? CHIP_ACTIVE : CHIP_INACTIVE
               }`}
             >
@@ -281,7 +281,7 @@ function FilterBarContent({
                 key={month}
                 type="button"
                 onClick={() => setFilters((prev) => ({ ...prev, selectedMonth: month }))}
-                className={`rounded-md border px-3 py-1.5 text-sm transition ${
+                className={`rounded-md border px-3 py-1.5 text-base transition ${
                   filters.selectedMonth === month ? CHIP_ACTIVE : CHIP_INACTIVE
                 }`}
               >
@@ -331,7 +331,7 @@ function FilterBarContent({
           <button
             type="button"
             onClick={() => setIsCategoryOpen((prev) => !prev)}
-            className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-left text-sm text-slate-900"
+            className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-left text-base text-slate-900"
           >
             {filters.categoryNames.length === 0 ? "すべてのカテゴリ" : `${filters.categoryNames.length}件選択中`}
           </button>
@@ -340,7 +340,7 @@ function FilterBarContent({
               {filters.categoryNames.map((name) => (
                 <span
                   key={name}
-                  className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-sm text-blue-800"
+                  className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-base text-blue-800"
                 >
                   {name}
                 </span>
@@ -357,7 +357,7 @@ function FilterBarContent({
                     categoryNames: [],
                   }))
                 }
-                className="mb-1 w-full rounded px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50"
+                className="mb-1 w-full rounded px-2 py-1.5 text-left text-base text-slate-700 hover:bg-slate-50"
               >
                 すべて解除
               </button>
@@ -382,7 +382,7 @@ function FilterBarContent({
                         }
                         className="h-4 w-4 accent-blue-600"
                       />
-                      <span className="text-sm text-slate-800">{categoryName}</span>
+                      <span className="text-base text-slate-800">{categoryName}</span>
                     </label>
                   );
                 })}
@@ -411,8 +411,8 @@ function KpiStrip() {
       </div>
     );
   }
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
-  if (weeklyError) return <p className="text-sm text-destructive">{weeklyError}</p>;
+  if (error) return <p className="text-base text-destructive">{error}</p>;
+  if (weeklyError) return <p className="text-base text-destructive">{weeklyError}</p>;
 
   const rows = (data ?? []) as Array<{
     activity_date?: string;
@@ -475,7 +475,7 @@ function KpiStrip() {
           <CardTitle className={`mt-2 text-3xl font-semibold tabular-nums ${TEXT_TITLE}`}>
             {growthPct === null ? "—" : `${growthPct >= 0 ? "+" : ""}${growthPct.toFixed(1)}%`}
           </CardTitle>
-          <p className={`mt-1 text-sm ${TEXT_SUBTLE}`}>
+          <p className={`mt-1 ${TEXT_SUBTLE}`}>
             先週: {lastWeekHours.toFixed(2)} 時間 · 状態: {signal}
           </p>
         </CardHeader>
@@ -498,7 +498,7 @@ function MessageTrendCard() {
   const { data, loading, error } = useAnalyticsQuery("activity_daily_message_trend", params);
 
   if (loading) return <Skeleton className="h-[360px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
+  if (error) return <p className="text-base text-destructive">{error}</p>;
 
   const rows = (data ?? []) as Array<{ activity_date?: string; guild_name?: string; message_count?: number | string }>;
   const chartData = rows
@@ -514,7 +514,7 @@ function MessageTrendCard() {
     <Card className={`${CARD} chart-readable chart-line-strong`}>
       <CardHeader>
         <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>日別の投稿数の推移</CardTitle>
-        <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+        <CardDescription className={`${TEXT_MUTED}`}>
           選択した期間のメッセージ投稿数を、日ごとに表示します。
         </CardDescription>
       </CardHeader>
@@ -525,10 +525,10 @@ function MessageTrendCard() {
               <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
               <XAxis
                 dataKey="activity_date"
-                tick={{ fill: CHART_AXIS, fontSize: 12 }}
+                tick={{ fill: CHART_AXIS, fontSize: 14 }}
                 axisLine={{ stroke: CHART_AXIS_LINE }}
               />
-              <YAxis tick={{ fill: CHART_AXIS, fontSize: 12 }} axisLine={{ stroke: CHART_AXIS_LINE }} width={48} />
+              <YAxis tick={{ fill: CHART_AXIS, fontSize: 14 }} axisLine={{ stroke: CHART_AXIS_LINE }} width={52} />
               <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={{ color: CHART_AXIS }} />
               <Line
                 type="monotone"
@@ -552,7 +552,7 @@ function VoiceTrendCard() {
   const { data, loading, error } = useAnalyticsQuery("activity_daily_voice_trend", params);
 
   if (loading) return <Skeleton className="h-[360px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
+  if (error) return <p className="text-base text-destructive">{error}</p>;
 
   const rows = (data ?? []) as Array<{ activity_date?: string; guild_name?: string; voice_hours?: number | string }>;
   const chartData = rows
@@ -568,7 +568,7 @@ function VoiceTrendCard() {
     <Card className={`${CARD} chart-readable chart-line-strong`}>
       <CardHeader>
         <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>日別のボイス利用時間の推移</CardTitle>
-        <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+        <CardDescription className={`${TEXT_MUTED}`}>
           選択した期間のボイス利用時間を、日ごとに表示します。
         </CardDescription>
       </CardHeader>
@@ -579,10 +579,10 @@ function VoiceTrendCard() {
               <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
               <XAxis
                 dataKey="activity_date"
-                tick={{ fill: CHART_AXIS, fontSize: 12 }}
+                tick={{ fill: CHART_AXIS, fontSize: 14 }}
                 axisLine={{ stroke: CHART_AXIS_LINE }}
               />
-              <YAxis tick={{ fill: CHART_AXIS, fontSize: 12 }} axisLine={{ stroke: CHART_AXIS_LINE }} width={48} />
+              <YAxis tick={{ fill: CHART_AXIS, fontSize: 14 }} axisLine={{ stroke: CHART_AXIS_LINE }} width={52} />
               <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={{ color: CHART_AXIS }} />
               <Line
                 type="monotone"
@@ -627,10 +627,10 @@ function RankingTableCard({
     <Card className={CARD}>
       <CardHeader>
         <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>{title}</CardTitle>
-        {description ? <CardDescription className={`text-sm ${TEXT_MUTED}`}>{description}</CardDescription> : null}
+        {description ? <CardDescription className={`${TEXT_MUTED}`}>{description}</CardDescription> : null}
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
-        <table className="w-full min-w-[460px] text-sm">
+        <table className="w-full min-w-[460px] text-base">
           <thead className="bg-slate-50">
             <tr className={`border-b ${TABLE_BORDER} text-left`}>
               <th className={`px-5 py-3 ${TABLE_HEAD}`}>Rank</th>
@@ -658,7 +658,7 @@ function RankingTableCard({
             <button
               type="button"
               onClick={() => setShowAll((prev) => !prev)}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-base text-slate-700 transition hover:bg-slate-50"
             >
               {showAll ? `上位${maxRows}件に戻す` : "すべて表示"}
             </button>
@@ -674,7 +674,7 @@ function UserMessageTable() {
   const { data, loading, error } = useAnalyticsQuery("user_messages_ranking", params);
 
   if (loading) return <Skeleton className="h-[300px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
+  if (error) return <p className="text-base text-destructive">{error}</p>;
 
   const rows = ((data ?? []) as Array<{ user_name?: string; message_count?: number | string }>).map((row) => ({
     name: row.user_name || "unknown",
@@ -701,7 +701,7 @@ function ChannelActivityTable() {
   const { data, loading, error } = useAnalyticsQuery("channel_activity", params);
 
   if (loading) return <Skeleton className="h-[300px] w-full" />;
-  if (error) return <p className="text-sm text-destructive">{error}</p>;
+  if (error) return <p className="text-base text-destructive">{error}</p>;
 
   const merged = new Map<string, number>();
   const rows = (data ?? []) as Array<{
@@ -738,8 +738,8 @@ function DashboardPageHeader() {
   return (
     <header className="border-b border-slate-200 pb-5">
       <p className={LABEL_UPPER}>コミュニティ分析</p>
-      <h1 className={`mt-2 text-2xl font-semibold tracking-tight ${TEXT_TITLE}`}>活動ダッシュボード</h1>
-      <p className={`mt-1 text-sm ${TEXT_MUTED}`}>
+      <h1 className={`mt-2 text-3xl font-semibold tracking-tight ${TEXT_TITLE}`}>活動ダッシュボード</h1>
+      <p className={`mt-1 text-base ${TEXT_MUTED}`}>
         コミュニティの活動状況を、期間・サーバー・カテゴリで絞り込んで確認できます。
       </p>
     </header>
@@ -750,18 +750,8 @@ function AnnouncementPageHeader() {
   return (
     <header className="border-b border-slate-200 pb-5">
       <p className={LABEL_UPPER}>AI ツール</p>
-      <h1 className={`mt-2 text-2xl font-semibold tracking-tight ${TEXT_TITLE}`}>告知文作成</h1>
-      <p className={`mt-1 text-sm ${TEXT_MUTED}`}>条件を選び、AIに依頼文を書くだけでイベント告知文を作成できます。</p>
-    </header>
-  );
-}
-
-function GeniePageHeader() {
-  return (
-    <header className="border-b border-slate-200 pb-5">
-      <p className={LABEL_UPPER}>AI ツール</p>
-      <h1 className={`mt-2 text-2xl font-semibold tracking-tight ${TEXT_TITLE}`}>AI データ相談</h1>
-      <p className={`mt-1 text-sm ${TEXT_MUTED}`}>自然言語でコミュニティデータについて質問し、分析結果を確認できます。</p>
+      <h1 className={`mt-2 text-3xl font-semibold tracking-tight ${TEXT_TITLE}`}>告知文作成</h1>
+      <p className={`mt-1 text-base ${TEXT_MUTED}`}>条件を選び、AIに依頼文を書くだけでイベント告知文を作成できます。</p>
     </header>
   );
 }
@@ -781,14 +771,14 @@ export default function App() {
   return (
     <FilterContext.Provider value={filterContext}>
       <div className={`${PAGE_BG} px-4 py-6 lg:px-6`}>
-        <div className="mx-auto w-full max-w-[1760px]">
+        <div className="w-full max-w-none">
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-8">
               <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
                 <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
                   <p className={LABEL_UPPER}>JEDAI Discord</p>
-                  <p className={`mt-2 text-sm font-semibold ${TEXT_TITLE}`}>コミュニティ分析</p>
-                  <p className={`mt-1 text-sm ${TEXT_MUTED}`}>活動データの可視化とAI支援</p>
+                  <p className={`mt-2 text-base font-semibold ${TEXT_TITLE}`}>コミュニティ分析</p>
+                  <p className={`mt-1 text-base ${TEXT_MUTED}`}>活動データの可視化とAI支援</p>
                 </div>
 
                 <nav aria-label="メインメニュー">
@@ -844,8 +834,7 @@ export default function App() {
                   <AnnouncementPanel />
                 </TabsContent>
 
-                <TabsContent value="genie" className="mt-0 space-y-6">
-                  <GeniePageHeader />
+                <TabsContent value="genie" className="mt-0">
                   <GeniePanel />
                 </TabsContent>
               </main>
