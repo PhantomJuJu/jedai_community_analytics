@@ -18,6 +18,5 @@ env:
     valueFrom: discord-api-secret
   - name: DISCORD_GUILD_ID
     value: "000000000000000000"
-  # Genie タブを有効化する場合は Space ID を追加（About タブで確認）
-  # - name: DATABRICKS_GENIE_SPACE_ID
-  #   value: "<your-genie-space-id>"
+  - name: DATABRICKS_GENIE_SPACE_ID
+    value: "01f157e0a288162daf5ccd0c431f19b7"
