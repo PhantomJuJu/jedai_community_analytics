@@ -72,7 +72,7 @@ export function AnnouncementPanel() {
   const [structure, setStructure] = useState<string>("箇条書き中心");
   const [cta_strength, setCtaStrength] = useState<string>("普通");
   const [user_request, setUserRequest] = useState<string>(
-    "来週土曜21時の練習会告知を作成してください。カジュアルな文体で、標準の長さ、箇条書き中心でお願いします。参加方法はこの投稿へのリアクションでお願いします。",
+    "来週土曜21時の練習会告知を作成してください。参加方法はこの投稿へのリアクションでお願いします。",
   );
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -133,7 +133,9 @@ export function AnnouncementPanel() {
         <form onSubmit={onSubmit} className="space-y-8">
           <section className="space-y-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
             <p className={`text-sm font-semibold ${TEXT_TITLE}`}>告知文のスタイル</p>
-            <p className={`text-sm ${TEXT_SUBTLE}`}>ボタンを選ぶだけで条件を指定できます。細かい調整は下の依頼文にも書けます。</p>
+            <p className={`text-sm ${TEXT_SUBTLE}`}>
+              文体・長さ・構成はここで指定します。下の依頼文には日時・内容・参加方法などの事実を書いてください（文体の指定は不要です）。
+            </p>
             <div className="grid gap-5 md:grid-cols-2">
               <ChoiceGroup
                 label="雰囲気"
@@ -181,7 +183,7 @@ export function AnnouncementPanel() {
                 AIへの依頼
               </Label>
               <p className={`mt-1 text-sm ${TEXT_SUBTLE}`}>
-                日時、イベント内容、対象者、参加方法、文体の希望などを、まとめて自然文で書いてください。
+                日時、イベント内容、対象者、参加方法などを自然文で書いてください。文体・長さは上のスタイル欄で指定します。
               </p>
             </div>
             <Textarea
@@ -189,7 +191,7 @@ export function AnnouncementPanel() {
               value={user_request}
               onChange={(ev) => setUserRequest(ev.target.value)}
               rows={6}
-              placeholder="例: 来週土曜21時にGeoguessrの練習会を告知してください。カジュアルな文体で、箇条書き中心。参加はこの投稿へのリアクションでお願いします。"
+              placeholder="例: 来週土曜21時にGeoguessrの練習会を告知してください。参加はこの投稿へのリアクションでお願いします。"
               className={`min-h-[160px] rounded-xl border px-4 py-3 text-sm leading-relaxed focus-visible:ring-blue-500/40 ${INPUT_SURFACE}`}
             />
             <Button type="submit" disabled={pending || user_request.trim().length === 0} className={`w-full sm:w-auto ${BTN_PRIMARY}`}>
@@ -200,8 +202,18 @@ export function AnnouncementPanel() {
 
         <div className="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-5">
           <p className={`text-sm font-semibold ${TEXT_TITLE}`}>生成プレビュー</p>
-          <p className={`mt-1 text-sm ${TEXT_SUBTLE}`}>あなたの依頼内容と、AIが作成した告知文を確認できます。</p>
+          <p className={`mt-1 text-sm ${TEXT_SUBTLE}`}>
+            適用スタイル・依頼内容・AIが作成した告知文を確認できます。
+          </p>
           <div className="mt-4 space-y-3">
+            <AppliedStyleSummary
+              tone={tone}
+              length={length}
+              formality={formality}
+              emoji_density={emoji_density}
+              structure={structure}
+              cta_strength={cta_strength}
+            />
             {user_request.trim().length > 0 ? <UserBubble text={user_request} /> : null}
             {pending ? <AgentReplyBubble message="告知文を作成しています。少々お待ちください…" /> : null}
             {!pending && error ? <ErrorBubble message={error} /> : null}
@@ -259,6 +271,49 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
     <div className="space-y-2">
       <Label className={`text-sm font-medium ${TEXT_TITLE}`}>{label}</Label>
       {children}
+    </div>
+  );
+}
+
+function optionLabel(options: ReadonlyArray<{ value: string; label: string }>, value: string): string {
+  return options.find((option) => option.value === value)?.label ?? value;
+}
+
+function AppliedStyleSummary({
+  tone,
+  length,
+  formality,
+  emoji_density,
+  structure,
+  cta_strength,
+}: {
+  tone: string;
+  length: string;
+  formality: string;
+  emoji_density: string;
+  structure: string;
+  cta_strength: string;
+}) {
+  const rows = [
+    { label: "雰囲気", value: optionLabel(TONE_OPTIONS, tone) },
+    { label: "長さ", value: optionLabel(LENGTH_OPTIONS, length) },
+    { label: "文体", value: optionLabel(FORMALITY_OPTIONS, formality) },
+    { label: "絵文字", value: optionLabel(EMOJI_OPTIONS, emoji_density) },
+    { label: "構成", value: optionLabel(STRUCTURE_OPTIONS, structure) },
+    { label: "参加を促す強さ", value: optionLabel(CTA_OPTIONS, cta_strength) },
+  ];
+
+  return (
+    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm shadow-sm">
+      <p className={`font-medium ${TEXT_TITLE}`}>適用スタイル（生成時に API へ送信）</p>
+      <dl className={`mt-2 grid gap-1.5 sm:grid-cols-2 ${TEXT_BODY}`}>
+        {rows.map((row) => (
+          <div key={row.label} className="flex gap-2">
+            <dt className={`shrink-0 ${TEXT_MUTED}`}>{row.label}</dt>
+            <dd className="font-medium">{row.value}</dd>
+          </div>
+        ))}
+      </dl>
     </div>
   );
 }
