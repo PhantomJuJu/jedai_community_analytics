@@ -93,7 +93,7 @@ export function GeniePanel() {
           <div className="h-[min(72vh,720px)] min-h-[480px] w-full">
             <GenieChat
               alias={config.alias}
-              basePath={config.basePath ?? "/api/genie-sp"}
+              basePath="/api/genie-sp"
               placeholder="コミュニティデータについて質問してください…"
               className="h-full"
             />

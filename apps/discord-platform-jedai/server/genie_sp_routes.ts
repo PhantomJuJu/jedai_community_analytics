@@ -62,6 +62,7 @@ async function streamGenieEvents(
  */
 export function registerGenieSpRoutes(app: Express, appkit: AppKitInstance): void {
   app.post("/api/genie-sp/:alias/messages", async (req: Request, res: Response) => {
+    console.info("[genie-sp] POST messages (service principal)");
     const alias = typeof req.params.alias === "string" ? req.params.alias : "";
     const content = typeof req.body?.content === "string" ? req.body.content.trim() : "";
     const conversationId =
