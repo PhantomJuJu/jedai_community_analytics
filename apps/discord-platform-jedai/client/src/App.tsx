@@ -46,8 +46,31 @@ import {
   VoiceLtvRankingTable,
   VoiceSessionScatterCard,
 } from "./VoiceAnalytics.js";
-
-const CARD = "rounded-xl border border-white/[0.07] bg-[#1a1b2e] transition-colors hover:bg-[#1e2035]";
+import {
+  CARD,
+  CARD_FILTER_ACTIVE,
+  CHART_AXIS,
+  CHART_AXIS_LINE,
+  CHART_GRID,
+  CHART_TOOLTIP,
+  CHIP_ACTIVE,
+  CHIP_INACTIVE,
+  LABEL_UPPER,
+  SIDEBAR_NAV_LIST,
+  SIDEBAR_NAV_TRIGGER,
+  LINE_PRIMARY,
+  LINE_SECONDARY,
+  PAGE_BG,
+  SELECT_CONTENT,
+  SELECT_TRIGGER,
+  TABLE_BORDER,
+  TABLE_HEAD,
+  TABLE_ROW_HOVER,
+  TEXT_BODY,
+  TEXT_MUTED,
+  TEXT_SUBTLE,
+  TEXT_TITLE,
+} from "./theme.js";
 const ALL_GUILDS = "__ALL_GUILDS__";
 const DEFAULT_MAX_RANK_ROWS = 10;
 
@@ -114,9 +137,9 @@ function SectionHeading({
 }) {
   return (
     <div className="mb-1 mt-1">
-      <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#5a5a7a]">{eyebrow}</p>
-      <h2 className="mt-1 text-lg font-semibold text-[#f0f0ff]">{title}</h2>
-      {description ? <p className="mt-0.5 text-xs text-[#9898b8]">{description}</p> : null}
+      <p className={LABEL_UPPER}>{eyebrow}</p>
+      <h2 className={`mt-1 text-lg font-semibold ${TEXT_TITLE}`}>{title}</h2>
+      {description ? <p className={`mt-1 text-sm ${TEXT_MUTED}`}>{description}</p> : null}
     </div>
   );
 }
@@ -208,21 +231,19 @@ function FilterBarContent({
   const hasActiveFilters = Boolean(filters.selectedMonth || filters.guildName || filters.categoryNames.length > 0);
 
   return (
-    <Card className="rounded-2xl border border-white/[0.08] bg-[#0e0f1e]/80 shadow-[0_14px_60px_-24px_rgba(124,92,214,0.6)] backdrop-blur">
+    <Card className={CARD}>
       <CardHeader className="pb-3">
         <div className="flex items-center justify-between gap-3">
           <div>
-            <CardDescription className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#5a5a7a]">
-              Filters
-            </CardDescription>
-            <CardTitle className="mt-2 text-base font-semibold text-[#f0f0ff]">表示条件</CardTitle>
+            <CardDescription className={LABEL_UPPER}>フィルター</CardDescription>
+            <CardTitle className={`mt-2 text-base font-semibold ${TEXT_TITLE}`}>表示条件</CardTitle>
           </div>
           <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={onRefresh}
               disabled={channelLoading || trendLoading}
-              className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs text-[#d0d0f4] transition-colors hover:bg-white/10 hover:text-[#f0f0ff] disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
             >
               {channelLoading || trendLoading ? "更新中…" : "更新"}
             </button>
@@ -230,7 +251,7 @@ function FilterBarContent({
               <button
                 type="button"
                 onClick={resetFilters}
-                className="rounded-full border border-white/20 bg-white/5 px-3 py-1 text-xs text-[#d0d0f4] transition-colors hover:bg-white/10 hover:text-[#f0f0ff]"
+                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm font-medium text-slate-700 transition-colors hover:bg-slate-50"
               >
                 クリア
               </button>
@@ -238,21 +259,19 @@ function FilterBarContent({
           </div>
         </div>
       </CardHeader>
-      <CardContent className="grid gap-3 pb-5 md:grid-cols-3">
+      <CardContent className="flex flex-col gap-3 pb-5">
         <div
-          className={`rounded-xl border bg-[#14152a]/80 p-3 transition ${
-            filters.selectedMonth ? "border-[#7c5cd6]/60 ring-1 ring-[#7c5cd6]/40" : "border-white/[0.08]"
+          className={`rounded-lg border bg-slate-50 p-3 transition ${
+            filters.selectedMonth ? CARD_FILTER_ACTIVE : "border-slate-200"
           }`}
         >
-          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#6e6e96]">期間（月）</p>
+          <p className={`mb-2 ${LABEL_UPPER}`}>期間（月）</p>
           <div className="flex flex-wrap gap-2">
             <button
               type="button"
               onClick={() => setFilters((prev) => ({ ...prev, selectedMonth: "" }))}
-              className={`rounded-full border px-2.5 py-1 text-xs transition ${
-                filters.selectedMonth === ""
-                  ? "border-[#7c5cd6] bg-[#7c5cd6] text-white"
-                  : "border-white/[0.15] bg-[#101126] text-[#c9c9e7] hover:border-white/[0.3]"
+              className={`rounded-md border px-3 py-1.5 text-sm transition ${
+                filters.selectedMonth === "" ? CHIP_ACTIVE : CHIP_INACTIVE
               }`}
             >
               全期間
@@ -262,10 +281,8 @@ function FilterBarContent({
                 key={month}
                 type="button"
                 onClick={() => setFilters((prev) => ({ ...prev, selectedMonth: month }))}
-                className={`rounded-full border px-2.5 py-1 text-xs transition ${
-                  filters.selectedMonth === month
-                    ? "border-[#7c5cd6] bg-[#7c5cd6] text-white"
-                    : "border-white/[0.15] bg-[#101126] text-[#c9c9e7] hover:border-white/[0.3]"
+                className={`rounded-md border px-3 py-1.5 text-sm transition ${
+                  filters.selectedMonth === month ? CHIP_ACTIVE : CHIP_INACTIVE
                 }`}
               >
                 {formatMonthLabel(month)}
@@ -275,11 +292,11 @@ function FilterBarContent({
         </div>
 
         <div
-          className={`rounded-xl border bg-[#14152a]/80 p-3 transition ${
-            filters.guildName ? "border-[#7c5cd6]/60 ring-1 ring-[#7c5cd6]/40" : "border-white/[0.08]"
+          className={`rounded-lg border bg-slate-50 p-3 transition ${
+            filters.guildName ? CARD_FILTER_ACTIVE : "border-slate-200"
           }`}
         >
-          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#6e6e96]">Guild</p>
+          <p className={`mb-2 ${LABEL_UPPER}`}>Guild</p>
           <Select
             value={filters.guildName || ALL_GUILDS}
             onValueChange={(value) =>
@@ -290,10 +307,10 @@ function FilterBarContent({
               }))
             }
           >
-            <SelectTrigger className="h-9 border-white/[0.12] bg-[#101126] text-xs text-[#f0f0ff]">
+            <SelectTrigger className={SELECT_TRIGGER}>
               <SelectValue placeholder="すべてのGuild" />
             </SelectTrigger>
-            <SelectContent className="border-white/[0.12] bg-[#101126] text-[#f0f0ff]">
+            <SelectContent className={SELECT_CONTENT}>
               <SelectItem value={ALL_GUILDS}>すべてのGuild</SelectItem>
               {guildOptions.map((guildName) => (
                 <SelectItem key={guildName} value={guildName}>
@@ -306,29 +323,32 @@ function FilterBarContent({
 
         <div
           ref={categoryPanelRef}
-          className={`relative rounded-xl border bg-[#14152a]/80 p-3 transition ${
-            filters.categoryNames.length > 0 ? "border-[#7c5cd6]/60 ring-1 ring-[#7c5cd6]/40" : "border-white/[0.08]"
+          className={`relative rounded-lg border bg-slate-50 p-3 transition ${
+            filters.categoryNames.length > 0 ? CARD_FILTER_ACTIVE : "border-slate-200"
           }`}
         >
-          <p className="mb-2 font-mono text-[10px] uppercase tracking-[0.22em] text-[#6e6e96]">Category（複数）</p>
+          <p className={`mb-2 ${LABEL_UPPER}`}>Category（複数）</p>
           <button
             type="button"
             onClick={() => setIsCategoryOpen((prev) => !prev)}
-            className="h-9 w-full rounded-lg border border-white/[0.12] bg-[#101126] px-3 text-left text-xs text-[#f0f0ff]"
+            className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-left text-sm text-slate-900"
           >
             {filters.categoryNames.length === 0 ? "すべてのカテゴリ" : `${filters.categoryNames.length}件選択中`}
           </button>
           {filters.categoryNames.length > 0 ? (
             <div className="mt-2 flex flex-wrap gap-1.5">
               {filters.categoryNames.map((name) => (
-                <span key={name} className="rounded-full border border-white/20 bg-white/10 px-2 py-0.5 text-[11px] text-[#e1e1ff]">
+                <span
+                  key={name}
+                  className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-sm text-blue-800"
+                >
                   {name}
                 </span>
               ))}
             </div>
           ) : null}
           {isCategoryOpen ? (
-            <div className="absolute left-0 top-[78px] z-20 w-full rounded-lg border border-white/[0.15] bg-[#0f1020] p-2 shadow-xl">
+            <div className="absolute left-0 right-0 top-full z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
               <button
                 type="button"
                 onClick={() =>
@@ -337,7 +357,7 @@ function FilterBarContent({
                     categoryNames: [],
                   }))
                 }
-                className="mb-1 w-full rounded px-2 py-1 text-left text-xs text-[#cfcfeb] hover:bg-white/10"
+                className="mb-1 w-full rounded px-2 py-1.5 text-left text-sm text-slate-700 hover:bg-slate-50"
               >
                 すべて解除
               </button>
@@ -345,7 +365,10 @@ function FilterBarContent({
                 {categoryOptions.map((categoryName) => {
                   const checked = filters.categoryNames.includes(categoryName);
                   return (
-                    <label key={categoryName} className="flex cursor-pointer items-center gap-2 rounded px-2 py-1 hover:bg-white/10">
+                    <label
+                      key={categoryName}
+                      className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-slate-50"
+                    >
                       <input
                         type="checkbox"
                         checked={checked}
@@ -357,9 +380,9 @@ function FilterBarContent({
                               : [...prev.categoryNames, categoryName],
                           }))
                         }
-                        className="h-3.5 w-3.5 accent-[#7c5cd6]"
+                        className="h-4 w-4 accent-blue-600"
                       />
-                      <span className="text-xs text-[#d7d7f4]">{categoryName}</span>
+                      <span className="text-sm text-slate-800">{categoryName}</span>
                     </label>
                   );
                 })}
@@ -434,39 +457,35 @@ function KpiStrip() {
     <div className="grid gap-4 md:grid-cols-2">
       <Card className={CARD}>
         <CardHeader className="pb-3">
-          <CardDescription className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-            選択期間の合計メッセージ数
-          </CardDescription>
-          <CardTitle className="mt-2 text-4xl font-semibold tabular-nums text-[#f0f0ff]">{messages.toLocaleString()}</CardTitle>
+          <CardDescription className={LABEL_UPPER}>期間内の投稿数</CardDescription>
+          <CardTitle className={`mt-2 text-3xl font-semibold tabular-nums ${TEXT_TITLE}`}>
+            {messages.toLocaleString()}
+          </CardTitle>
         </CardHeader>
       </Card>
       <Card className={CARD}>
         <CardHeader className="pb-3">
-          <CardDescription className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-            選択期間の合計ボイス時間（時間）
-          </CardDescription>
-          <CardTitle className="mt-2 text-4xl font-semibold tabular-nums text-[#f0f0ff]">{hours.toFixed(2)}</CardTitle>
+          <CardDescription className={LABEL_UPPER}>期間内のボイス利用時間（時間）</CardDescription>
+          <CardTitle className={`mt-2 text-3xl font-semibold tabular-nums ${TEXT_TITLE}`}>{hours.toFixed(2)}</CardTitle>
         </CardHeader>
       </Card>
       <Card className={CARD}>
         <CardHeader className="pb-3">
-          <CardDescription className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-            前週比（%） / 健全性シグナル
-          </CardDescription>
-          <CardTitle className="mt-2 text-3xl font-semibold tabular-nums text-[#f0f0ff]">
+          <CardDescription className={LABEL_UPPER}>先週とのボイス時間の変化</CardDescription>
+          <CardTitle className={`mt-2 text-3xl font-semibold tabular-nums ${TEXT_TITLE}`}>
             {growthPct === null ? "—" : `${growthPct >= 0 ? "+" : ""}${growthPct.toFixed(1)}%`}
           </CardTitle>
-          <p className="mt-1 text-xs text-[#7a7a9a]">
-            前週: {lastWeekHours.toFixed(2)}h · signal: {signal}
+          <p className={`mt-1 text-sm ${TEXT_SUBTLE}`}>
+            先週: {lastWeekHours.toFixed(2)} 時間 · 状態: {signal}
           </p>
         </CardHeader>
       </Card>
       <Card className={CARD}>
         <CardHeader className="pb-3">
-          <CardDescription className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-            今週のボイス時間（直近7日・時間）
-          </CardDescription>
-          <CardTitle className="mt-2 text-4xl font-semibold tabular-nums text-[#f0f0ff]">{thisWeekHours.toFixed(2)}</CardTitle>
+          <CardDescription className={LABEL_UPPER}>直近7日間のボイス利用時間</CardDescription>
+          <CardTitle className={`mt-2 text-3xl font-semibold tabular-nums ${TEXT_TITLE}`}>
+            {thisWeekHours.toFixed(2)}
+          </CardTitle>
         </CardHeader>
       </Card>
     </div>
@@ -492,23 +511,33 @@ function MessageTrendCard() {
     }));
 
   return (
-    <Card className={CARD}>
+    <Card className={`${CARD} chart-readable chart-line-strong`}>
       <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">メッセージ数トレンド</CardTitle>
-        <CardDescription className="text-sm text-[#9898b8]">日次メッセージ数の推移</CardDescription>
+        <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>日別の投稿数の推移</CardTitle>
+        <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+          選択した期間のメッセージ投稿数を、日ごとに表示します。
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <RechartsLineChart data={chartData} margin={{ top: 10, right: 16, left: 8, bottom: 0 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.16)" strokeDasharray="0" />
-              <XAxis dataKey="activity_date" tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={{ stroke: "rgba(255,255,255,0.4)" }} />
-              <YAxis tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={{ stroke: "rgba(255,255,255,0.4)" }} width={48} />
-              <Tooltip
-                contentStyle={{ background: "#12121e", border: "1px solid rgba(255,255,255,0.18)", color: "#f0f0ff" }}
-                labelStyle={{ color: "#f0f0ff" }}
+              <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
+              <XAxis
+                dataKey="activity_date"
+                tick={{ fill: CHART_AXIS, fontSize: 12 }}
+                axisLine={{ stroke: CHART_AXIS_LINE }}
               />
-              <Line type="monotone" dataKey="message_count" stroke="#7c5cd6" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
+              <YAxis tick={{ fill: CHART_AXIS, fontSize: 12 }} axisLine={{ stroke: CHART_AXIS_LINE }} width={48} />
+              <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={{ color: CHART_AXIS }} />
+              <Line
+                type="monotone"
+                dataKey="message_count"
+                stroke={LINE_PRIMARY}
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={{ r: 5 }}
+              />
             </RechartsLineChart>
           </ResponsiveContainer>
         </div>
@@ -536,23 +565,33 @@ function VoiceTrendCard() {
     }));
 
   return (
-    <Card className={CARD}>
+    <Card className={`${CARD} chart-readable chart-line-strong`}>
       <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">ボイスチャット時間トレンド</CardTitle>
-        <CardDescription className="text-sm text-[#9898b8]">日次ボイス接続時間の推移</CardDescription>
+        <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>日別のボイス利用時間の推移</CardTitle>
+        <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+          選択した期間のボイス利用時間を、日ごとに表示します。
+        </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <RechartsLineChart data={chartData} margin={{ top: 10, right: 16, left: 8, bottom: 0 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.16)" strokeDasharray="0" />
-              <XAxis dataKey="activity_date" tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={{ stroke: "rgba(255,255,255,0.4)" }} />
-              <YAxis tick={{ fill: "#f0f0ff", fontSize: 12 }} axisLine={{ stroke: "rgba(255,255,255,0.4)" }} width={48} />
-              <Tooltip
-                contentStyle={{ background: "#12121e", border: "1px solid rgba(255,255,255,0.18)", color: "#f0f0ff" }}
-                labelStyle={{ color: "#f0f0ff" }}
+              <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
+              <XAxis
+                dataKey="activity_date"
+                tick={{ fill: CHART_AXIS, fontSize: 12 }}
+                axisLine={{ stroke: CHART_AXIS_LINE }}
               />
-              <Line type="monotone" dataKey="voice_hours" stroke="#5a9cf8" strokeWidth={3} dot={false} activeDot={{ r: 5 }} />
+              <YAxis tick={{ fill: CHART_AXIS, fontSize: 12 }} axisLine={{ stroke: CHART_AXIS_LINE }} width={48} />
+              <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={{ color: CHART_AXIS }} />
+              <Line
+                type="monotone"
+                dataKey="voice_hours"
+                stroke={LINE_SECONDARY}
+                strokeWidth={2.5}
+                dot={false}
+                activeDot={{ r: 5 }}
+              />
             </RechartsLineChart>
           </ResponsiveContainer>
         </div>
@@ -587,34 +626,39 @@ function RankingTableCard({
   return (
     <Card className={CARD}>
       <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">{title}</CardTitle>
-        {description ? <CardDescription className="text-xs text-[#9898b8]">{description}</CardDescription> : null}
+        <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>{title}</CardTitle>
+        {description ? <CardDescription className={`text-sm ${TEXT_MUTED}`}>{description}</CardDescription> : null}
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
         <table className="w-full min-w-[460px] text-sm">
-          <thead>
-            <tr className="border-b border-white/[0.07] text-left">
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-[#9898b8]">Rank</th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-[#9898b8]">{nameColumnLabel}</th>
-              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-widest text-[#9898b8]">{valueColumnLabel}</th>
+          <thead className="bg-slate-50">
+            <tr className={`border-b ${TABLE_BORDER} text-left`}>
+              <th className={`px-5 py-3 ${TABLE_HEAD}`}>Rank</th>
+              <th className={`px-5 py-3 ${TABLE_HEAD}`}>{nameColumnLabel}</th>
+              <th className={`px-5 py-3 text-right ${TABLE_HEAD}`}>{valueColumnLabel}</th>
             </tr>
           </thead>
           <tbody>
             {displayRows.map((row, index) => (
-              <tr key={`${row.name}-${index}`} className="border-b border-white/[0.05] transition-colors hover:bg-[#1e2035]">
-                <td className="px-5 py-3 tabular-nums text-[#5a5a7a]">{index + 1}</td>
-                <td className="px-5 py-3 text-[#f0f0ff]">{row.name}</td>
-                <td className="px-5 py-3 text-right font-semibold tabular-nums text-[#f0f0ff]">{valueFormatter(row.value)}</td>
+              <tr
+                key={`${row.name}-${index}`}
+                className={`border-b border-slate-100 transition-colors ${TABLE_ROW_HOVER}`}
+              >
+                <td className={`px-5 py-3 tabular-nums ${TEXT_SUBTLE}`}>{index + 1}</td>
+                <td className={`px-5 py-3 ${TEXT_BODY}`}>{row.name}</td>
+                <td className={`px-5 py-3 text-right font-semibold tabular-nums ${TEXT_TITLE}`}>
+                  {valueFormatter(row.value)}
+                </td>
               </tr>
             ))}
           </tbody>
         </table>
         {canToggle ? (
-          <div className="border-t border-white/[0.06] px-4 py-3">
+          <div className={`border-t ${TABLE_BORDER} px-4 py-3`}>
             <button
               type="button"
               onClick={() => setShowAll((prev) => !prev)}
-              className="rounded-md border border-white/20 bg-white/5 px-3 py-1 text-xs text-[#cfcfeb] transition hover:bg-white/10"
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
             >
               {showAll ? `上位${maxRows}件に戻す` : "すべて表示"}
             </button>
@@ -639,12 +683,12 @@ function UserMessageTable() {
 
   return (
     <RankingTableCard
-      title="ユーザ別メッセージランキング"
+      title="投稿で貢献しているユーザー"
       rows={rows}
-      nameColumnLabel="ユーザ"
-      valueColumnLabel="メッセージ数"
+      nameColumnLabel="ユーザー"
+      valueColumnLabel="投稿数"
       valueFormatter={(value) => value.toLocaleString()}
-      description="カテゴリフィルタは未対応（このカードは全体集計）"
+      description="コミュニティ全体の投稿数ランキングです（カテゴリ絞り込みは未対応）。"
       maxRows={DEFAULT_MAX_RANK_ROWS}
       showAllToggle
     />
@@ -679,7 +723,7 @@ function ChannelActivityTable() {
 
   return (
     <RankingTableCard
-      title="チャンネル別メッセージランキング"
+      title="投稿が多いチャンネル"
       rows={aggregatedRows}
       nameColumnLabel="チャンネル"
       valueColumnLabel="メッセージ数"
@@ -690,8 +734,41 @@ function ChannelActivityTable() {
   );
 }
 
+function DashboardPageHeader() {
+  return (
+    <header className="border-b border-slate-200 pb-5">
+      <p className={LABEL_UPPER}>コミュニティ分析</p>
+      <h1 className={`mt-2 text-2xl font-semibold tracking-tight ${TEXT_TITLE}`}>活動ダッシュボード</h1>
+      <p className={`mt-1 text-sm ${TEXT_MUTED}`}>
+        コミュニティの活動状況を、期間・サーバー・カテゴリで絞り込んで確認できます。
+      </p>
+    </header>
+  );
+}
+
+function AnnouncementPageHeader() {
+  return (
+    <header className="border-b border-slate-200 pb-5">
+      <p className={LABEL_UPPER}>AI ツール</p>
+      <h1 className={`mt-2 text-2xl font-semibold tracking-tight ${TEXT_TITLE}`}>告知文作成</h1>
+      <p className={`mt-1 text-sm ${TEXT_MUTED}`}>条件を選び、AIに依頼文を書くだけでイベント告知文を作成できます。</p>
+    </header>
+  );
+}
+
+function GeniePageHeader() {
+  return (
+    <header className="border-b border-slate-200 pb-5">
+      <p className={LABEL_UPPER}>AI ツール</p>
+      <h1 className={`mt-2 text-2xl font-semibold tracking-tight ${TEXT_TITLE}`}>AI データ相談</h1>
+      <p className={`mt-1 text-sm ${TEXT_MUTED}`}>自然言語でコミュニティデータについて質問し、分析結果を確認できます。</p>
+    </header>
+  );
+}
+
 export default function App() {
   const [filters, setFilters] = useState<FilterState>(DEFAULT_FILTERS);
+  const [activeTab, setActiveTab] = useState("dashboard");
   const filterContext = useMemo(
     () => ({
       filters,
@@ -703,69 +780,76 @@ export default function App() {
 
   return (
     <FilterContext.Provider value={filterContext}>
-      <div className="min-h-screen px-4 py-6 lg:px-6">
+      <div className={`${PAGE_BG} px-4 py-6 lg:px-6`}>
         <div className="mx-auto w-full max-w-[1760px]">
-          <header className="mb-8">
-            <p className="text-xs font-medium uppercase tracking-widest text-[#5a5a7a]">Community Analytics</p>
-            <h1 className="mt-1 text-3xl font-semibold text-[#f0f0ff]">JEDAI Discord</h1>
-            <p className="mt-1 text-sm text-[#9898b8]">コミュニティ活動の統計ダッシュボード</p>
-          </header>
+          <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
+            <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-8">
+              <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
+                <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
+                  <p className={LABEL_UPPER}>JEDAI Discord</p>
+                  <p className={`mt-2 text-sm font-semibold ${TEXT_TITLE}`}>コミュニティ分析</p>
+                  <p className={`mt-1 text-sm ${TEXT_MUTED}`}>活動データの可視化とAI支援</p>
+                </div>
 
-          <Tabs defaultValue="dashboard" className="w-full">
-            <TabsList className="mb-6 h-auto w-full justify-start gap-0 rounded-none border-b border-white/[0.07] bg-transparent p-0">
-              <TabsTrigger
-                value="dashboard"
-                className="rounded-none border-b-2 border-transparent px-5 py-2.5 text-sm font-medium text-[#9898b8] transition-colors data-[state=active]:border-[#7c5cd6] data-[state=active]:bg-transparent data-[state=active]:text-[#f0f0ff]"
-              >
-                ダッシュボード
-              </TabsTrigger>
-              <TabsTrigger
-                value="announcement"
-                className="rounded-none border-b-2 border-transparent px-5 py-2.5 text-sm font-medium text-[#9898b8] transition-colors data-[state=active]:border-[#7c5cd6] data-[state=active]:bg-transparent data-[state=active]:text-[#f0f0ff]"
-              >
-                告知ジェネレータ
-              </TabsTrigger>
-              <TabsTrigger
-                value="genie"
-                className="rounded-none border-b-2 border-transparent px-5 py-2.5 text-sm font-medium text-[#9898b8] transition-colors data-[state=active]:border-[#7c5cd6] data-[state=active]:bg-transparent data-[state=active]:text-[#f0f0ff]"
-              >
-                Genie
-              </TabsTrigger>
-            </TabsList>
+                <nav aria-label="メインメニュー">
+                  <TabsList className={SIDEBAR_NAV_LIST}>
+                    <TabsTrigger value="dashboard" className={SIDEBAR_NAV_TRIGGER}>
+                      活動ダッシュボード
+                    </TabsTrigger>
+                    <TabsTrigger value="announcement" className={SIDEBAR_NAV_TRIGGER}>
+                      告知文作成
+                    </TabsTrigger>
+                    <TabsTrigger value="genie" className={SIDEBAR_NAV_TRIGGER}>
+                      AI データ相談
+                    </TabsTrigger>
+                  </TabsList>
+                </nav>
 
-            <TabsContent value="dashboard" className="space-y-6">
-              <FilterBar />
-              <SectionHeading eyebrow="Summary" title="サマリー KPI" description="選択した期間・Guild・カテゴリで集計" />
-              <KpiStrip />
-              <SectionHeading eyebrow="Trend" title="トレンド" />
-              <div className="grid gap-4 xl:grid-cols-2">
-                <MessageTrendCard />
-                <VoiceTrendCard />
-              </div>
-              <VoiceHeatmapCard />
-              <SectionHeading eyebrow="Channel" title="チャンネル分析" />
-              <div className="grid gap-4 xl:grid-cols-2">
-                <ChannelActivityTable />
-                <VoiceChannelHhiCard />
-              </div>
-              <SectionHeading eyebrow="User" title="ユーザ分析" />
-              <div className="grid gap-4 xl:grid-cols-2">
-                <UserMessageTable />
-                <VoiceLtvRankingTable />
-              </div>
-              <div className="grid gap-4 xl:grid-cols-2">
-                <VoiceChurnRiskTable />
-                <VoiceSessionScatterCard />
-              </div>
-            </TabsContent>
+                {activeTab === "dashboard" ? <FilterBar /> : null}
+              </aside>
 
-            <TabsContent value="announcement" className="mt-0">
-              <AnnouncementPanel />
-            </TabsContent>
+              <main className="min-w-0 space-y-6">
+                <TabsContent value="dashboard" className="mt-0 space-y-6">
+                  <DashboardPageHeader />
+                  <SectionHeading
+                    eyebrow="概要"
+                    title="コミュニティの現在地"
+                    description="選択した期間・サーバー・カテゴリの活動量をまとめて表示します。"
+                  />
+                  <KpiStrip />
+                  <SectionHeading eyebrow="推移" title="活動量の推移" />
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <MessageTrendCard />
+                    <VoiceTrendCard />
+                  </div>
+                  <VoiceHeatmapCard />
+                  <SectionHeading eyebrow="場所" title="盛り上がっている場所" />
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <ChannelActivityTable />
+                    <VoiceChannelHhiCard />
+                  </div>
+                  <SectionHeading eyebrow="参加者" title="参加者の動き" />
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <UserMessageTable />
+                    <VoiceLtvRankingTable />
+                  </div>
+                  <div className="grid gap-4 xl:grid-cols-2">
+                    <VoiceChurnRiskTable />
+                    <VoiceSessionScatterCard />
+                  </div>
+                </TabsContent>
 
-            <TabsContent value="genie" className="mt-0">
-              <GeniePanel />
-            </TabsContent>
+                <TabsContent value="announcement" className="mt-0 space-y-6">
+                  <AnnouncementPageHeader />
+                  <AnnouncementPanel />
+                </TabsContent>
+
+                <TabsContent value="genie" className="mt-0 space-y-6">
+                  <GeniePageHeader />
+                  <GeniePanel />
+                </TabsContent>
+              </main>
+            </div>
           </Tabs>
         </div>
       </div>

@@ -8,8 +8,7 @@ import {
   Skeleton,
 } from "@databricks/appkit-ui/react";
 import { useEffect, useState } from "react";
-
-const CARD = "rounded-xl border border-white/[0.07] bg-[#1a1b2e]";
+import { CARD, TEXT_BODY, TEXT_MUTED, TEXT_TITLE } from "./theme";
 
 type GenieConfigResponse = {
   configured: boolean;
@@ -53,27 +52,35 @@ export function GeniePanel() {
     return (
       <Card className={CARD}>
         <CardHeader>
-          <CardTitle className="text-base font-semibold text-[#f0f0ff]">Genie アシスタント</CardTitle>
-          <CardDescription className="text-sm text-[#9898b8]">
+          <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>Genie アシスタント</CardTitle>
+          <CardDescription className={`text-sm ${TEXT_MUTED}`}>
             Databricks AI/BI Genie Space が未設定のため、チャットは利用できません。
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3 text-sm text-[#c9c9e7]">
+        <CardContent className={`space-y-3 text-sm ${TEXT_BODY}`}>
           <p>
             自然言語でコミュニティ指標を質問し、SQL と可視化結果を Genie から取得できます。利用するには
             Genie Space ID を設定してください。
           </p>
-          <ul className="list-inside list-disc space-y-1 text-xs text-[#9898b8]">
+          <ul className={`list-inside list-disc space-y-1 text-sm ${TEXT_MUTED}`}>
             <li>
-              ローカル: <code className="text-[#e1e1ff]">.env</code> に{" "}
-              <code className="text-[#e1e1ff]">DATABRICKS_GENIE_SPACE_ID</code> を追加
+              ローカル: <code className="rounded bg-slate-100 px-1 text-slate-800">.env</code> に{" "}
+              <code className="rounded bg-slate-100 px-1 text-slate-800">DATABRICKS_GENIE_SPACE_ID</code> を追加
             </li>
             <li>
-              Databricks Apps: <code className="text-[#e1e1ff]">app.yaml</code> の env に同変数を設定
+              Databricks Apps: <strong>Genie Space リソース</strong>（名前{" "}
+              <code className="rounded bg-slate-100 px-1 text-slate-800">genie-space</code>）をアプリに追加し、
+              <code className="rounded bg-slate-100 px-1 text-slate-800">app.yaml</code> の{" "}
+              <code className="rounded bg-slate-100 px-1 text-slate-800">valueFrom: genie-space</code> と対応させる
             </li>
-            <li>Genie Space の About タブから Space ID をコピー</li>
+            <li>
+              あわせて User authorization にスコープ{" "}
+              <code className="rounded bg-slate-100 px-1 text-slate-800">dashboards.genie</code> を付与（
+              <code className="rounded bg-slate-100 px-1 text-slate-800">scripts/app-update-genie.json</code> 参照）
+            </li>
+            <li>反映後に再デプロイ。Space ID は Genie Space の About タブからコピー</li>
           </ul>
-          {error ? <p className="text-xs text-destructive">{error}</p> : null}
+          {error ? <p className="text-sm text-red-600">{error}</p> : null}
         </CardContent>
       </Card>
     );
@@ -81,13 +88,6 @@ export function GeniePanel() {
 
   return (
     <div className="space-y-4">
-      <div>
-        <p className="font-mono text-[10px] uppercase tracking-[0.28em] text-[#5a5a7a]">Genie</p>
-        <h2 className="mt-1 text-lg font-semibold text-[#f0f0ff]">自然言語でデータを質問</h2>
-        <p className="mt-0.5 text-xs text-[#9898b8]">
-          例: 「先週いちばん活発だった曜日と時間は？」「ボイス時間が伸びているチャンネルは？」
-        </p>
-      </div>
       <Card className={`${CARD} overflow-hidden`}>
         <CardContent className="p-0">
           <div className="h-[min(72vh,720px)] min-h-[480px] w-full">

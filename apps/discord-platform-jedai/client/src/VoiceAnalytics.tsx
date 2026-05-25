@@ -21,8 +21,22 @@ import {
   YAxis,
   ZAxis,
 } from "recharts";
+import {
+  CARD,
+  CHART_AXIS,
+  CHART_GRID,
+  CHART_TOOLTIP,
+  LABEL_UPPER,
+  LINE_SECONDARY,
+  TABLE_BORDER,
+  TABLE_HEAD,
+  TABLE_ROW_HOVER,
+  TEXT_BODY,
+  TEXT_MUTED,
+  TEXT_SUBTLE,
+  TEXT_TITLE,
+} from "./theme.js";
 
-const CARD = "rounded-xl border border-white/[0.07] bg-[#1a1b2e] transition-colors hover:bg-[#1e2035]";
 const DEFAULT_MAX_RANK_ROWS = 10;
 
 const WEEKDAY_ORDER = ["1. 月", "2. 火", "3. 水", "4. 木", "5. 金", "6. 土", "7. 日"];
@@ -146,32 +160,26 @@ function RankingTableCard({
   return (
     <Card className={CARD}>
       <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">{title}</CardTitle>
+        <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>{title}</CardTitle>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
         <table className="w-full min-w-[460px] text-sm">
-          <thead>
-            <tr className="border-b border-white/[0.07] text-left">
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-                Rank
-              </th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-                {nameColumnLabel}
-              </th>
-              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-                {valueColumnLabel}
-              </th>
+          <thead className="bg-slate-50">
+            <tr className={`border-b ${TABLE_BORDER} text-left`}>
+              <th className={`px-5 py-3 ${TABLE_HEAD}`}>Rank</th>
+              <th className={`px-5 py-3 ${TABLE_HEAD}`}>{nameColumnLabel}</th>
+              <th className={`px-5 py-3 text-right ${TABLE_HEAD}`}>{valueColumnLabel}</th>
             </tr>
           </thead>
           <tbody>
             {displayRows.map((row, index) => (
               <tr
                 key={`${row.name}-${index}`}
-                className="border-b border-white/[0.05] transition-colors hover:bg-[#1e2035]"
+                className={`border-b border-slate-100 transition-colors ${TABLE_ROW_HOVER}`}
               >
-                <td className="px-5 py-3 tabular-nums text-[#5a5a7a]">{index + 1}</td>
-                <td className="px-5 py-3 text-[#f0f0ff]">{row.name}</td>
-                <td className="px-5 py-3 text-right font-semibold tabular-nums text-[#f0f0ff]">
+                <td className={`px-5 py-3 tabular-nums ${TEXT_SUBTLE}`}>{index + 1}</td>
+                <td className={`px-5 py-3 ${TEXT_BODY}`}>{row.name}</td>
+                <td className={`px-5 py-3 text-right font-semibold tabular-nums ${TEXT_TITLE}`}>
                   {valueFormatter(row.value)}
                 </td>
               </tr>
@@ -179,11 +187,11 @@ function RankingTableCard({
           </tbody>
         </table>
         {canToggle ? (
-          <div className="border-t border-white/[0.06] px-4 py-3">
+          <div className={`border-t ${TABLE_BORDER} px-4 py-3`}>
             <button
               type="button"
               onClick={() => setShowAll((prev) => !prev)}
-              className="rounded-md border border-white/20 bg-white/5 px-3 py-1 text-xs text-[#cfcfeb] transition hover:bg-white/10"
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
             >
               {showAll ? `上位${maxRows}件に戻す` : "すべて表示"}
             </button>
@@ -197,15 +205,15 @@ function RankingTableCard({
 function churnLevelBadgeClass(level: string): string {
   switch (level) {
     case "離脱済み":
-      return "bg-red-500/20 text-red-300 border-red-500/40";
+      return "border-red-200 bg-red-50 text-red-800";
     case "高":
-      return "bg-orange-500/20 text-orange-200 border-orange-500/40";
+      return "border-orange-200 bg-orange-50 text-orange-800";
     case "要注意":
-      return "bg-amber-500/15 text-amber-200 border-amber-500/35";
+      return "border-amber-200 bg-amber-50 text-amber-900";
     case "活発":
-      return "bg-emerald-500/15 text-emerald-200 border-emerald-500/35";
+      return "border-emerald-200 bg-emerald-50 text-emerald-800";
     default:
-      return "bg-white/10 text-[#9898b8] border-white/20";
+      return "border-slate-200 bg-slate-100 text-slate-600";
   }
 }
 
@@ -229,49 +237,39 @@ export function VoiceChurnRiskTable() {
   return (
     <Card className={CARD}>
       <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">ボイス離脱リスク</CardTitle>
-        <CardDescription className="text-sm text-[#9898b8]">
-          最終参加からの経過日数とリスクスコア（セッション数 2 回以上）
+        <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>最近ボイス参加が減っているユーザー</CardTitle>
+        <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+          最後にボイスに参加してからの日数と、離脱の可能性が高い順に表示します。
         </CardDescription>
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
         <table className="w-full min-w-[560px] text-sm">
-          <thead>
-            <tr className="border-b border-white/[0.07] text-left">
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-                Rank
-              </th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-                ユーザ
-              </th>
-              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-                経過日数
-              </th>
-              <th className="px-5 py-3 text-right text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-                スコア
-              </th>
-              <th className="px-5 py-3 text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-                レベル
-              </th>
+          <thead className="bg-slate-50">
+            <tr className={`border-b ${TABLE_BORDER} text-left`}>
+              <th className={`px-5 py-3 ${TABLE_HEAD}`}>Rank</th>
+              <th className={`px-5 py-3 ${TABLE_HEAD}`}>ユーザ</th>
+              <th className={`px-5 py-3 text-right ${TABLE_HEAD}`}>経過日数</th>
+              <th className={`px-5 py-3 text-right ${TABLE_HEAD}`}>スコア</th>
+              <th className={`px-5 py-3 ${TABLE_HEAD}`}>レベル</th>
             </tr>
           </thead>
           <tbody>
             {displayRows.map((row, index) => (
               <tr
                 key={`${row.user_name}-${index}`}
-                className="border-b border-white/[0.05] transition-colors hover:bg-[#1e2035]"
+                className={`border-b border-slate-100 transition-colors ${TABLE_ROW_HOVER}`}
               >
-                <td className="px-5 py-3 tabular-nums text-[#5a5a7a]">{index + 1}</td>
-                <td className="px-5 py-3 text-[#f0f0ff]">{row.user_name ?? "unknown"}</td>
-                <td className="px-5 py-3 text-right tabular-nums text-[#f0f0ff]">
+                <td className={`px-5 py-3 tabular-nums ${TEXT_SUBTLE}`}>{index + 1}</td>
+                <td className={`px-5 py-3 ${TEXT_BODY}`}>{row.user_name ?? "unknown"}</td>
+                <td className={`px-5 py-3 text-right tabular-nums ${TEXT_BODY}`}>
                   {toNumber(row.days_since_last_voice).toLocaleString()}
                 </td>
-                <td className="px-5 py-3 text-right font-semibold tabular-nums text-[#f0f0ff]">
+                <td className={`px-5 py-3 text-right font-semibold tabular-nums ${TEXT_TITLE}`}>
                   {toNumber(row.churn_risk_score)}
                 </td>
                 <td className="px-5 py-3">
                   <span
-                    className={`inline-block rounded-full border px-2.5 py-0.5 text-xs font-medium ${churnLevelBadgeClass(
+                    className={`inline-block rounded-md border px-2.5 py-0.5 text-sm font-medium ${churnLevelBadgeClass(
                       row.churn_risk_level ?? "",
                     )}`}
                   >
@@ -283,11 +281,11 @@ export function VoiceChurnRiskTable() {
           </tbody>
         </table>
         {canToggle ? (
-          <div className="border-t border-white/[0.06] px-4 py-3">
+          <div className={`border-t ${TABLE_BORDER} px-4 py-3`}>
             <button
               type="button"
               onClick={() => setShowAll((prev) => !prev)}
-              className="rounded-md border border-white/20 bg-white/5 px-3 py-1 text-xs text-[#cfcfeb] transition hover:bg-white/10"
+              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-sm text-slate-700 transition hover:bg-slate-50"
             >
               {showAll ? `上位${DEFAULT_MAX_RANK_ROWS}件に戻す` : "すべて表示"}
             </button>
@@ -322,7 +320,7 @@ export function VoiceWeeklyKpiStrip() {
     | undefined;
 
   if (!row) {
-    return <p className="text-sm text-[#9898b8]">週次 KPI 未取得</p>;
+    return <p className={`text-sm ${TEXT_MUTED}`}>週次 KPI 未取得</p>;
   }
 
   const thisWeek = toNumber(row.this_week_voice_hours);
@@ -333,32 +331,28 @@ export function VoiceWeeklyKpiStrip() {
 
   const borderClass =
     signal === "RED"
-      ? "border-red-500/50"
+      ? "border-red-300"
       : signal === "YELLOW"
-        ? "border-amber-500/45"
-        : "border-emerald-500/40";
+        ? "border-amber-300"
+        : "border-emerald-300";
 
   return (
     <div className="grid gap-4 md:grid-cols-2">
       <Card className={`${CARD} border-2 ${borderClass}`}>
         <CardHeader className="pb-3">
-          <CardDescription className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-            今週のボイス時間（直近7日・時間）
-          </CardDescription>
-          <CardTitle className="mt-2 text-4xl font-semibold tabular-nums text-[#f0f0ff]">
+          <CardDescription className={LABEL_UPPER}>直近7日間のボイス利用時間</CardDescription>
+          <CardTitle className={`mt-2 text-3xl font-semibold tabular-nums ${TEXT_TITLE}`}>
             {thisWeek.toFixed(2)}
           </CardTitle>
         </CardHeader>
       </Card>
       <Card className={`${CARD} border-2 ${borderClass}`}>
         <CardHeader className="pb-3">
-          <CardDescription className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-            前週比（%） / 健全性シグナル
-          </CardDescription>
-          <CardTitle className="mt-2 text-3xl font-semibold tabular-nums text-[#f0f0ff]">
+          <CardDescription className={LABEL_UPPER}>先週とのボイス時間の変化</CardDescription>
+          <CardTitle className={`mt-2 text-3xl font-semibold tabular-nums ${TEXT_TITLE}`}>
             {pct === null ? "—" : `${pct >= 0 ? "+" : ""}${pct.toFixed(1)}%`}
           </CardTitle>
-          <p className="mt-1 text-xs text-[#7a7a9a]">
+          <p className={`mt-1 text-sm ${TEXT_SUBTLE}`}>
             前週: {lastWeek.toFixed(2)}h · signal: {signal}
           </p>
         </CardHeader>
@@ -392,27 +386,25 @@ export function VoiceHeatmapCard() {
   return (
     <Card className={CARD}>
       <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">
-          ボイス優位スロット（90% ボイス / 10% メッセージ合成スコア）
-        </CardTitle>
-        <CardDescription className="text-sm text-[#9898b8]">
-          ギルド内最大値で正規化した合成指標（セルはギルド間で最大値を表示）
+        <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>イベントを開催しやすい曜日と時間</CardTitle>
+        <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+          ボイス活動が特に多い曜日・時間帯を色の濃さで表示します。告知やイベントの候補日時の参考にできます。
         </CardDescription>
         <div
-          className="mt-4 rounded-xl border border-[#7c5cd6]/35 bg-[#7c5cd6]/10 px-4 py-3"
+          className="mt-4 rounded-lg border border-blue-200 bg-blue-50 px-4 py-3"
           role="note"
           aria-label="ヒートマップの示唆"
         >
-          <p className="text-xs font-semibold uppercase tracking-widest text-[#b8a8f0]">インサイト</p>
-          <p className="mt-2 text-sm leading-relaxed text-[#e8e8ff]">{peakInsight.headline}</p>
+          <p className={`${LABEL_UPPER} text-blue-700`}>インサイト</p>
+          <p className={`mt-2 text-sm leading-relaxed ${TEXT_BODY}`}>{peakInsight.headline}</p>
           {peakInsight.detail ? (
-            <p className="mt-1.5 text-xs text-[#9898b8]">{peakInsight.detail}</p>
+            <p className={`mt-1.5 text-sm ${TEXT_MUTED}`}>{peakInsight.detail}</p>
           ) : null}
         </div>
       </CardHeader>
       <CardContent className="overflow-x-auto">
         <div className="w-full min-w-[720px]">
-          <div className="mb-2 grid grid-cols-[84px_repeat(24,minmax(18px,1fr))] gap-[4px] text-[10px] text-[#7a7a9a]">
+          <div className={`mb-2 grid grid-cols-[84px_repeat(24,minmax(18px,1fr))] gap-[4px] text-xs ${TEXT_SUBTLE}`}>
             <div />
             {Array.from({ length: 24 }, (_, hour) => (
               <div key={hour} className="text-center">
@@ -426,17 +418,17 @@ export function VoiceHeatmapCard() {
                 key={day}
                 className="grid grid-cols-[84px_repeat(24,minmax(18px,1fr))] items-stretch gap-[4px]"
               >
-                <div className="flex items-center text-xs font-medium text-[#b2b2d0]">{day}</div>
+                <div className={`flex items-center text-sm font-medium ${TEXT_BODY}`}>{day}</div>
                 {matrix[dayIndex].map((value, hour) => {
                   const intensity = value / maxValue;
                   const hasValue = value > 0;
-                  const alpha = hasValue ? 0.15 + intensity * 0.85 : 0;
-                  const bgColor = hasValue ? `rgba(90, 156, 248, ${alpha})` : "#1e1f30";
+                  const alpha = hasValue ? 0.12 + intensity * 0.78 : 0;
+                  const bgColor = hasValue ? `rgba(37, 99, 235, ${alpha})` : "#f1f5f9";
                   return (
                     <div
                       key={`${day}-${hour}`}
                       title={`${day} ${hour}:00 — ${valueFormatter(value)}`}
-                      className="h-8 rounded-[4px] border border-white/[0.07] text-center text-[9px] leading-8 text-white/85"
+                      className="h-8 rounded border border-slate-200 text-center text-[10px] leading-8 text-slate-800"
                       style={{ backgroundColor: bgColor }}
                     >
                       {hasValue && intensity > 0.35 ? valueFormatter(value) : ""}
@@ -482,49 +474,38 @@ export function VoiceSessionScatterCard() {
   const my = median(chartData.map((d) => d.active_weeks));
 
   return (
-    <Card className={CARD}>
+    <Card className={`${CARD} chart-readable`}>
       <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">
-          セッション深度 × 稼働週数（散布図）
-        </CardTitle>
-        <CardDescription className="text-sm text-[#9898b8]">
-          X: 平均セッション長（分）、Y: アクティブ週数。線は中央値。
+        <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>継続的に参加しているユーザーの分布</CardTitle>
+        <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+          横軸は1回あたりの平均参加時間（分）、縦軸は参加した週数です。点線は全体の中央値です。
         </CardDescription>
       </CardHeader>
       <CardContent>
         <div className="h-[340px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <ScatterChart margin={{ top: 10, right: 16, left: 8, bottom: 8 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.16)" strokeDasharray="0" />
+              <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
               <XAxis
                 type="number"
                 dataKey="avg_session_minutes"
                 name="平均(分)"
-                tick={{ fill: "#f0f0ff", fontSize: 12 }}
+                tick={{ fill: CHART_AXIS, fontSize: 12 }}
               />
-              <YAxis
-                type="number"
-                dataKey="active_weeks"
-                name="稼働週"
-                tick={{ fill: "#f0f0ff", fontSize: 12 }}
-              />
+              <YAxis type="number" dataKey="active_weeks" name="稼働週" tick={{ fill: CHART_AXIS, fontSize: 12 }} />
               <ZAxis range={[60, 60]} />
               <Tooltip
                 cursor={{ strokeDasharray: "3 3" }}
-                contentStyle={{
-                  background: "#12121e",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  color: "#f0f0ff",
-                }}
+                contentStyle={CHART_TOOLTIP}
                 formatter={(value: number, name: string) => [
                   typeof value === "number" ? value.toFixed(name.includes("分") ? 1 : 1) : value,
                   name,
                 ]}
                 labelFormatter={(_, payload) => (payload?.[0] as { payload?: { name?: string } })?.payload?.name ?? ""}
               />
-              <ReferenceLine x={mx} stroke="rgba(255,255,255,0.35)" strokeDasharray="4 4" />
-              <ReferenceLine y={my} stroke="rgba(255,255,255,0.35)" strokeDasharray="4 4" />
-              <Scatter name="ユーザ" data={chartData} fill="#9b7ee8" />
+              <ReferenceLine x={mx} stroke="rgba(148, 163, 184, 0.6)" strokeDasharray="4 4" />
+              <ReferenceLine y={my} stroke="rgba(148, 163, 184, 0.6)" strokeDasharray="4 4" />
+              <Scatter name="ユーザ" data={chartData} fill="#2563eb" />
             </ScatterChart>
           </ResponsiveContainer>
         </div>
@@ -547,10 +528,10 @@ export function VoiceLtvRankingTable() {
 
   return (
     <RankingTableCard
-      title="ボイス LTV スコアランキング"
+      title="ボイス参加の貢献度が高いユーザー"
       rows={rows}
-      nameColumnLabel="ユーザ"
-      valueColumnLabel="LTV スコア"
+      nameColumnLabel="ユーザー"
+      valueColumnLabel="貢献度スコア"
       valueFormatter={(value) => value.toFixed(2)}
       maxRows={DEFAULT_MAX_RANK_ROWS}
       showAllToggle
@@ -584,18 +565,18 @@ export function VoiceChannelHhiCard() {
     }));
 
   return (
-    <Card className={CARD}>
+    <Card className={`${CARD} chart-readable chart-bar-strong`}>
       <CardHeader>
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div>
-            <CardTitle className="text-base font-semibold text-[#f0f0ff]">チャンネル集中度（HHI）</CardTitle>
-            <CardDescription className="text-sm text-[#9898b8]">
-              シェア上位20チャンネル · HHI = Σ(シェア²)×10000
+            <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>ボイス利用が集中しているチャンネル</CardTitle>
+            <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+              ボイス利用時間の割合が大きいチャンネル上位20件と、全体の集中度指標です。
             </CardDescription>
           </div>
           <div className="text-right">
-            <p className="text-2xl font-semibold tabular-nums text-[#f0f0ff]">{hhi.toFixed(0)}</p>
-            <span className="mt-1 inline-block rounded-full border border-white/20 bg-white/5 px-2.5 py-0.5 text-xs text-[#9898b8]">
+            <p className={`text-2xl font-semibold tabular-nums ${TEXT_TITLE}`}>{hhi.toFixed(0)}</p>
+            <span className="mt-1 inline-block rounded-md border border-slate-200 bg-slate-100 px-2.5 py-0.5 text-sm text-slate-600">
               {status}
             </span>
           </div>
@@ -605,24 +586,17 @@ export function VoiceChannelHhiCard() {
         <div className="h-[320px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <RechartsBarChart data={chartData} layout="vertical" margin={{ top: 8, right: 16, left: 8, bottom: 8 }}>
-              <CartesianGrid stroke="rgba(255,255,255,0.16)" strokeDasharray="0" />
-              <XAxis type="number" tick={{ fill: "#f0f0ff", fontSize: 11 }} unit="%" />
+              <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
+              <XAxis type="number" tick={{ fill: CHART_AXIS, fontSize: 11 }} unit="%" />
               <YAxis
                 type="category"
                 dataKey="name"
                 width={120}
-                tick={{ fill: "#f0f0ff", fontSize: 10 }}
+                tick={{ fill: CHART_AXIS, fontSize: 11 }}
                 interval={0}
               />
-              <Tooltip
-                contentStyle={{
-                  background: "#12121e",
-                  border: "1px solid rgba(255,255,255,0.18)",
-                  color: "#f0f0ff",
-                }}
-                formatter={(v: number) => [`${v.toFixed(2)}%`, "シェア"]}
-              />
-              <Bar dataKey="share" fill="#5a9cf8" radius={[0, 6, 6, 0]} />
+              <Tooltip contentStyle={CHART_TOOLTIP} formatter={(v: number) => [`${v.toFixed(2)}%`, "シェア"]} />
+              <Bar dataKey="share" fill={LINE_SECONDARY} radius={[0, 4, 4, 0]} />
             </RechartsBarChart>
           </ResponsiveContainer>
         </div>

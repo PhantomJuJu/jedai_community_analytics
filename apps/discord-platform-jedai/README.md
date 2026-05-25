@@ -66,7 +66,19 @@ databricks apps deploy discord-platform-jedai \
 
 - `DATABRICKS_GENIE_SPACE_ID` に AI/BI Genie Space の ID を設定すると、**Genie** タブで自然言語チャットとクエリ結果の可視化が利用できます。
 - Space ID は Databricks の Genie Space 画面 → **About** タブで確認できます。
-- **User authorization** に OAuth スコープ `dashboards.genie` が必要です（未設定だと `does not have required scopes: genie`）。アプリの **Authorization** でスコープを追加し、Genie Space を `genie_space` リソースとしてバインドしてください。例: `scripts/app-update-genie.json` を `databricks apps update` に渡す。
+- **Genie を動かすには2つセットで必要**（どちらか欠けるとチャット未設定 or `Invalid scope: genie`）:
+  1. **Genie Space リソース**（`app.yaml` の `valueFrom: genie-space`）— Space ID を `DATABRICKS_GENIE_SPACE_ID` に注入し、アプリ SP に Space 権限を付与
+  2. **User authorization スコープ** `dashboards.genie`（表示名 `genie`）— ユーザー OAuth 経路用。UI は `/api/genie-sp`（SP）を優先するが、リソース未登録だと Space ID が空になる
+- 初回・リソース追加後は次を実行:
+  ```bash
+  databricks apps update discord-platform-jedai \
+    --profile apps-deploy \
+    --json @scripts/app-update-genie.json
+  databricks apps deploy discord-platform-jedai \
+    --source-code-path /Workspace/Users/kazuki.date@myteam.com/discord-platform-jedai-deploy \
+    --profile apps-deploy
+  ```
+- スコープ追加後はユーザーが **シークレットで再ログイン**（古い同意トークンは `genie` スコープなしのまま）
 - スコープ追加後は、**アプリを再デプロイ**し、ブラウザで **再ログイン**（またはシークレットウィンドウ）してユーザー同意を取り直してください。
 - アプリ実行プリンシパルと、利用ユーザー双方に、対象 Genie Space への **CAN RUN** 以上の権限が必要です。
 - 未設定の場合は Genie タブに設定手順のみ表示されます（ダッシュボードの既存ウィジェットはそのまま利用可能）。

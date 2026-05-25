@@ -12,13 +12,57 @@ import { Skeleton } from "@databricks/appkit-ui/react";
 import { Textarea } from "@databricks/appkit-ui/react";
 import { useAnalyticsQuery } from "@databricks/appkit-ui/react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
+import {
+  BTN_PRIMARY,
+  CARD,
+  CHIP_ACTIVE,
+  CHIP_INACTIVE,
+  INPUT_SURFACE,
+  LABEL_UPPER,
+  SELECT_CONTENT,
+  SELECT_TRIGGER,
+  TEXT_BODY,
+  TEXT_MUTED,
+  TEXT_SUBTLE,
+  TEXT_TITLE,
+} from "./theme";
 
-const TONE = ["真面目", "おふざけ", "カジュアル"] as const;
-const LENGTH = ["short", "medium", "long"] as const;
-const FORMALITY = ["ですます", "タメ口", "敬語"] as const;
-const EMOJI = ["なし", "少なめ", "普通", "多め"] as const;
-const STRUCTURE = ["箇条書き中心", "段落中心", "見出し＋本文"] as const;
-const CTA = ["控えめ", "普通", "強め"] as const;
+const TONE_OPTIONS = [
+  { value: "真面目", label: "真面目" },
+  { value: "おふざけ", label: "おふざけ" },
+  { value: "カジュアル", label: "カジュアル" },
+] as const;
+
+const LENGTH_OPTIONS = [
+  { value: "short", label: "短め" },
+  { value: "medium", label: "標準" },
+  { value: "long", label: "長め" },
+] as const;
+
+const FORMALITY_OPTIONS = [
+  { value: "ですます", label: "です・ます" },
+  { value: "タメ口", label: "タメ口" },
+  { value: "敬語", label: "敬語" },
+] as const;
+
+const EMOJI_OPTIONS = [
+  { value: "なし", label: "なし" },
+  { value: "少なめ", label: "少なめ" },
+  { value: "普通", label: "普通" },
+  { value: "多め", label: "多め" },
+] as const;
+
+const STRUCTURE_OPTIONS = [
+  { value: "箇条書き中心", label: "箇条書き" },
+  { value: "段落中心", label: "段落" },
+  { value: "見出し＋本文", label: "見出し付き" },
+] as const;
+
+const CTA_OPTIONS = [
+  { value: "控えめ", label: "控えめ" },
+  { value: "普通", label: "普通" },
+  { value: "強め", label: "強め" },
+] as const;
 
 export function AnnouncementPanel() {
   const [tone, setTone] = useState<string>("カジュアル");
@@ -28,10 +72,8 @@ export function AnnouncementPanel() {
   const [structure, setStructure] = useState<string>("箇条書き中心");
   const [cta_strength, setCtaStrength] = useState<string>("普通");
   const [user_request, setUserRequest] = useState<string>(
-    "来週土曜21時の練習会告知を、カジュアルで中くらいの長さ、箇条書き中心で作って",
+    "来週土曜21時の練習会告知を作成してください。カジュアルな文体で、標準の長さ、箇条書き中心でお願いします。参加方法はこの投稿へのリアクションでお願いします。",
   );
-  /** Maps to prompt [Context facts]; optional — empty uses server env EVENT_CONTEXT_FOR_REQUEST if set. */
-  const [context_for_request, setContextForRequest] = useState<string>("");
   const [result, setResult] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -53,9 +95,6 @@ export function AnnouncementPanel() {
           structure,
           cta_strength,
           user_request,
-          ...(context_for_request.trim().length > 0
-            ? { context_for_request: context_for_request.trim() }
-            : {}),
         }),
       });
       let payload: { text?: string; error?: string } = {};
@@ -83,181 +122,88 @@ export function AnnouncementPanel() {
   }
 
   return (
-    <Card className="rounded-xl border border-white/[0.07] bg-[#1a1b2e]">
+    <Card className={CARD}>
       <CardHeader>
-        <CardTitle className="text-base font-semibold text-[#f0f0ff]">
-          イベント告知ジェネレータ
-        </CardTitle>
-        <CardDescription className="text-sm text-[#9898b8]">
-          パラメータとリクエストを入力して告知文を生成できます。生成中はチャット風の待機表示に切り替わり、
-          完了後はそのままコピーできます。
+        <CardTitle className={`text-base font-semibold ${TEXT_TITLE}`}>イベント告知AIエージェント</CardTitle>
+        <CardDescription className={`text-sm ${TEXT_MUTED}`}>
+          文体や長さを選び、AIへの依頼文を書くだけで告知文を作成できます。生成結果はそのままコピーしたり、Discordへ予約送信できます。
         </CardDescription>
       </CardHeader>
       <CardContent>
-        <form onSubmit={onSubmit} className="space-y-6">
-          <div className="grid gap-4 xl:grid-cols-3">
-            <Field label="Tone">
-              <Select value={tone} onValueChange={setTone}>
-                <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
-                  {TONE.map((t) => (
-                    <SelectItem
-                      key={t}
-                      value={t}
-                      className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
-                    >
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Length">
-              <Select value={length} onValueChange={setLength}>
-                <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
-                  {LENGTH.map((t) => (
-                    <SelectItem
-                      key={t}
-                      value={t}
-                      className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
-                    >
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Formality">
-              <Select value={formality} onValueChange={setFormality}>
-                <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
-                  {FORMALITY.map((t) => (
-                    <SelectItem
-                      key={t}
-                      value={t}
-                      className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
-                    >
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Emoji density">
-              <Select value={emoji_density} onValueChange={setEmojiDensity}>
-                <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
-                  {EMOJI.map((t) => (
-                    <SelectItem
-                      key={t}
-                      value={t}
-                      className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
-                    >
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="Structure">
-              <Select value={structure} onValueChange={setStructure}>
-                <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
-                  {STRUCTURE.map((t) => (
-                    <SelectItem
-                      key={t}
-                      value={t}
-                      className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
-                    >
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-            <Field label="CTA strength">
-              <Select value={cta_strength} onValueChange={setCtaStrength}>
-                <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
-                  {CTA.map((t) => (
-                    <SelectItem
-                      key={t}
-                      value={t}
-                      className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
-                    >
-                      {t}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </Field>
-          </div>
+        <form onSubmit={onSubmit} className="space-y-8">
+          <section className="space-y-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
+            <p className={`text-sm font-semibold ${TEXT_TITLE}`}>告知文のスタイル</p>
+            <p className={`text-sm ${TEXT_SUBTLE}`}>ボタンを選ぶだけで条件を指定できます。細かい調整は下の依頼文にも書けます。</p>
+            <div className="grid gap-5 md:grid-cols-2">
+              <ChoiceGroup
+                label="雰囲気"
+                options={TONE_OPTIONS}
+                value={tone}
+                onChange={setTone}
+              />
+              <ChoiceGroup
+                label="長さ"
+                options={LENGTH_OPTIONS}
+                value={length}
+                onChange={setLength}
+              />
+              <ChoiceGroup
+                label="文体"
+                options={FORMALITY_OPTIONS}
+                value={formality}
+                onChange={setFormality}
+              />
+              <ChoiceGroup
+                label="絵文字の量"
+                options={EMOJI_OPTIONS}
+                value={emoji_density}
+                onChange={setEmojiDensity}
+              />
+              <ChoiceGroup
+                label="文章の構成"
+                options={STRUCTURE_OPTIONS}
+                value={structure}
+                onChange={setStructure}
+              />
+              <ChoiceGroup
+                label="参加を促す強さ"
+                hint="「参加してね」の呼びかけをどれだけ強くするか"
+                options={CTA_OPTIONS}
+                value={cta_strength}
+                onChange={setCtaStrength}
+              />
+            </div>
+          </section>
 
-          <div className="space-y-2">
-            <Label
-              htmlFor="context_for_request"
-              className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]"
-            >
-              Context facts（任意）
-            </Label>
-            <Textarea
-              id="context_for_request"
-              value={context_for_request}
-              onChange={(ev) => setContextForRequest(ev.target.value)}
-              rows={3}
-              placeholder={
-                "例: Geoguessr / 5/24（土）21:00 / TitanZz Discord / 参加はこの投稿にリアクション"
-              }
-              className="border-white/[0.07] bg-[#12121e] text-[#f0f0ff] placeholder:text-[#5a5a7a] focus-visible:ring-[#7c5cd6]/50"
-            />
-            <p className="text-xs text-[#6a6a8a]">
-              Notebook の [Context facts] に相当。入力があると環境変数より優先されます。
-            </p>
-          </div>
-
-          <div className="space-y-2">
-            <Label
-              htmlFor="user_request"
-              className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]"
-            >
-              リクエスト
-            </Label>
+          <section className="space-y-3">
+            <div>
+              <Label htmlFor="user_request" className={`text-sm font-semibold ${TEXT_TITLE}`}>
+                AIへの依頼
+              </Label>
+              <p className={`mt-1 text-sm ${TEXT_SUBTLE}`}>
+                日時、イベント内容、対象者、参加方法、文体の希望などを、まとめて自然文で書いてください。
+              </p>
+            </div>
             <Textarea
               id="user_request"
               value={user_request}
               onChange={(ev) => setUserRequest(ev.target.value)}
-              rows={4}
-              className="border-white/[0.07] bg-[#12121e] text-[#f0f0ff] placeholder:text-[#5a5a7a] focus-visible:ring-[#7c5cd6]/50"
+              rows={6}
+              placeholder="例: 来週土曜21時にGeoguessrの練習会を告知してください。カジュアルな文体で、箇条書き中心。参加はこの投稿へのリアクションでお願いします。"
+              className={`min-h-[160px] rounded-xl border px-4 py-3 text-sm leading-relaxed focus-visible:ring-blue-500/40 ${INPUT_SURFACE}`}
             />
-          </div>
-
-          <Button
-            type="submit"
-            disabled={pending}
-            className="bg-[#7c5cd6] text-white hover:bg-[#9b7ee8] disabled:opacity-50"
-          >
-            {pending ? "生成中…" : "生成"}
-          </Button>
+            <Button type="submit" disabled={pending || user_request.trim().length === 0} className={`w-full sm:w-auto ${BTN_PRIMARY}`}>
+              {pending ? "告知文を作成中…" : "AIに告知文を作ってもらう"}
+            </Button>
+          </section>
         </form>
 
-        <div className="mt-8 rounded-xl border border-white/[0.07] bg-[#12121e] p-4">
-          <p className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">Preview</p>
+        <div className="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-5">
+          <p className={`text-sm font-semibold ${TEXT_TITLE}`}>生成プレビュー</p>
+          <p className={`mt-1 text-sm ${TEXT_SUBTLE}`}>あなたの依頼内容と、AIが作成した告知文を確認できます。</p>
           <div className="mt-4 space-y-3">
-            <UserBubble text={user_request} />
-            {pending ? <TypingIndicator /> : null}
+            {user_request.trim().length > 0 ? <UserBubble text={user_request} /> : null}
+            {pending ? <AgentReplyBubble message="告知文を作成しています。少々お待ちください…" /> : null}
             {!pending && error ? <ErrorBubble message={error} /> : null}
             {!pending && result !== null ? <ResultBubble text={result} /> : null}
           </div>
@@ -271,12 +217,47 @@ export function AnnouncementPanel() {
   );
 }
 
+function ChoiceGroup<T extends string>({
+  label,
+  hint,
+  options,
+  value,
+  onChange,
+}: {
+  label: string;
+  hint?: string;
+  options: ReadonlyArray<{ value: T; label: string }>;
+  value: T;
+  onChange: (next: T) => void;
+}) {
+  return (
+    <div className="space-y-2">
+      <div>
+        <p className={`text-sm font-medium ${TEXT_TITLE}`}>{label}</p>
+        {hint ? <p className={`mt-0.5 text-sm ${TEXT_SUBTLE}`}>{hint}</p> : null}
+      </div>
+      <div className="flex flex-wrap gap-2">
+        {options.map((option) => (
+          <button
+            key={option.value}
+            type="button"
+            onClick={() => onChange(option.value)}
+            className={`rounded-full border px-3.5 py-1.5 text-sm font-medium transition ${
+              value === option.value ? CHIP_ACTIVE : CHIP_INACTIVE
+            }`}
+          >
+            {option.label}
+          </button>
+        ))}
+      </div>
+    </div>
+  );
+}
+
 function Field({ label, children }: { label: string; children: ReactNode }) {
   return (
     <div className="space-y-2">
-      <Label className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">
-        {label}
-      </Label>
+      <Label className={`text-sm font-medium ${TEXT_TITLE}`}>{label}</Label>
       {children}
     </div>
   );
@@ -285,22 +266,29 @@ function Field({ label, children }: { label: string; children: ReactNode }) {
 function UserBubble({ text }: { text: string }) {
   return (
     <div className="flex justify-end">
-      <div className="max-w-[90%] rounded-2xl rounded-br-sm bg-[#2d2f5f] px-4 py-3 text-sm text-[#f0f0ff]">
+      <div className={`max-w-[90%] rounded-2xl rounded-br-sm border border-blue-200 bg-blue-50 px-4 py-3 text-sm ${TEXT_BODY}`}>
         {text}
       </div>
     </div>
   );
 }
 
-function TypingIndicator() {
+function AgentReplyBubble({ message }: { message: string }) {
   return (
-    <div className="flex justify-start">
-      <div className="rounded-2xl rounded-bl-sm border border-white/[0.07] bg-[#0f0f1a] px-4 py-3">
-        <div className="flex items-center gap-1">
+    <div className="flex justify-start gap-2">
+      <div
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white"
+        aria-hidden
+      >
+        AI
+      </div>
+      <div className="max-w-[95%] rounded-2xl rounded-bl-sm border border-slate-200 bg-white px-4 py-3 shadow-sm">
+        <p className={`text-sm ${TEXT_BODY}`}>{message}</p>
+        <div className="mt-2 flex items-center gap-1">
           {[0, 1, 2].map((idx) => (
             <span
               key={idx}
-              className="h-2 w-2 rounded-full bg-[#9898b8] animate-bounce"
+              className="h-2 w-2 rounded-full bg-slate-400 animate-bounce"
               style={{ animationDelay: `${idx * 0.15}s` }}
             />
           ))}
@@ -326,19 +314,25 @@ function ResultBubble({ text }: { text: string }) {
   }
 
   return (
-    <div className="flex justify-start">
-      <div className="relative w-full max-w-[95%] rounded-2xl rounded-bl-sm border border-white/[0.07] bg-[#0f0f1a] p-4">
+    <div className="flex justify-start gap-2">
+      <div
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white"
+        aria-hidden
+      >
+        AI
+      </div>
+      <div className="relative w-full max-w-[95%] rounded-2xl rounded-bl-sm border border-slate-200 bg-white p-4 shadow-sm">
         <Button
           type="button"
           onClick={onCopy}
-          className="absolute right-3 top-3 h-7 bg-[#2f6feb] px-2 text-xs text-white hover:bg-[#4a82ee]"
+          className={`absolute right-3 top-3 h-8 px-2 text-xs ${BTN_PRIMARY}`}
         >
           {copied ? "コピー済み" : "コピー"}
         </Button>
-        <pre className="pr-16 whitespace-pre-wrap font-mono text-sm leading-relaxed text-[#f0f0ff]">
+        <pre className={`pr-16 whitespace-pre-wrap font-mono text-sm leading-relaxed ${TEXT_BODY}`}>
           {text}
         </pre>
-        {copyError ? <p className="mt-2 text-xs text-red-400">{copyError}</p> : null}
+        {copyError ? <p className="mt-2 text-sm text-red-600">{copyError}</p> : null}
       </div>
     </div>
   );
@@ -347,7 +341,7 @@ function ResultBubble({ text }: { text: string }) {
 function ErrorBubble({ message }: { message: string }) {
   return (
     <div className="flex justify-start">
-      <div className="max-w-[95%] rounded-2xl rounded-bl-sm border border-red-500/30 bg-red-950/30 px-4 py-3 text-sm text-red-300">
+      <div className="max-w-[95%] rounded-2xl rounded-bl-sm border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-700">
         {message}
       </div>
     </div>
@@ -515,9 +509,9 @@ function DiscordScheduleSection({ content }: { content: string }) {
   const scheduledRows = posts?.scheduled ?? [];
 
   return (
-    <div className="mt-6 rounded-xl border border-white/[0.07] bg-[#12121e] p-4">
-      <p className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">Discord へ送信</p>
-      <p className="mt-1 text-xs text-[#6a6a8a]">
+    <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+      <p className={LABEL_UPPER}>Discord へ送信</p>
+      <p className={`mt-1 text-sm ${TEXT_SUBTLE}`}>
         生成した文章を EC2 上の Discord Bot に予約登録します。指定時刻に自動投稿されます。
       </p>
 
@@ -526,21 +520,17 @@ function DiscordScheduleSection({ content }: { content: string }) {
           {channelsLoading ? (
             <Skeleton className="h-9 w-full" />
           ) : channelsError ? (
-            <p className="text-xs text-red-400">{channelsError}</p>
+            <p className="text-sm text-red-600">{channelsError}</p>
           ) : channelOptions.length === 0 ? (
-            <p className="text-xs text-[#9898b8]">チャンネル一覧がありません（discord_channels_raw を確認）</p>
+            <p className={`text-sm ${TEXT_MUTED}`}>チャンネル一覧がありません（discord_channels_raw を確認）</p>
           ) : (
             <Select value={channelId} onValueChange={setChannelId}>
-              <SelectTrigger className="border-white/[0.07] bg-[#1a1b2e] text-[#f0f0ff]">
+              <SelectTrigger className={SELECT_TRIGGER}>
                 <SelectValue placeholder="チャンネルを選択" />
               </SelectTrigger>
-              <SelectContent className="border-white/[0.07] bg-[#1a1b2e]">
+              <SelectContent className={SELECT_CONTENT}>
                 {channelOptions.map((channel) => (
-                  <SelectItem
-                    key={channel.id}
-                    value={channel.id}
-                    className="text-[#f0f0ff] focus:bg-[#2d2f5f] focus:text-[#f0f0ff]"
-                  >
+                  <SelectItem key={channel.id} value={channel.id}>
                     #{channel.name}
                   </SelectItem>
                 ))}
@@ -554,7 +544,7 @@ function DiscordScheduleSection({ content }: { content: string }) {
             type="datetime-local"
             value={scheduledAtLocal}
             onChange={(event) => setScheduledAtLocal(event.target.value)}
-            className="h-9 w-full rounded-md border border-white/[0.07] bg-[#12121e] px-3 text-sm text-[#f0f0ff] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#7c5cd6]/50"
+            className={`h-9 w-full rounded-md border px-3 text-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${INPUT_SURFACE}`}
           />
         </Field>
       </div>
@@ -563,33 +553,33 @@ function DiscordScheduleSection({ content }: { content: string }) {
         type="button"
         onClick={() => void onSchedule()}
         disabled={schedulePending || channelsLoading || channelOptions.length === 0}
-        className="mt-4 bg-[#2f6feb] text-white hover:bg-[#4a82ee] disabled:opacity-50"
+        className={`mt-4 ${BTN_PRIMARY}`}
       >
         {schedulePending ? "予約中…" : "Discord に予約送信"}
       </Button>
 
-      {scheduleError ? <p className="mt-2 text-xs text-red-400">{scheduleError}</p> : null}
-      {scheduleSuccess ? <p className="mt-2 text-xs text-emerald-400">{scheduleSuccess}</p> : null}
+      {scheduleError ? <p className="mt-2 text-sm text-red-600">{scheduleError}</p> : null}
+      {scheduleSuccess ? <p className="mt-2 text-sm text-emerald-700">{scheduleSuccess}</p> : null}
 
-      <div className="mt-6 border-t border-white/[0.07] pt-4">
+      <div className="mt-6 border-t border-slate-200 pt-4">
         <div className="flex items-center justify-between gap-2">
-          <p className="text-xs font-semibold uppercase tracking-widest text-[#9898b8]">予約一覧</p>
+          <p className={LABEL_UPPER}>予約一覧</p>
           <button
             type="button"
             onClick={() => void loadPosts()}
             disabled={postsLoading}
-            className="rounded-md border border-white/20 bg-white/5 px-2 py-1 text-xs text-[#cfcfeb] hover:bg-white/10 disabled:opacity-50"
+            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-sm text-slate-700 hover:bg-slate-50 disabled:opacity-50"
           >
             {postsLoading ? "読込中…" : "再読込"}
           </button>
         </div>
 
-        {postsError ? <p className="mt-2 text-xs text-red-400">{postsError}</p> : null}
+        {postsError ? <p className="mt-2 text-sm text-red-600">{postsError}</p> : null}
 
         {postsLoading && !posts ? <Skeleton className="mt-3 h-20 w-full" /> : null}
 
         {!postsLoading && scheduledRows.length === 0 ? (
-          <p className="mt-2 text-xs text-[#9898b8]">予約中の投稿はありません</p>
+          <p className={`mt-2 text-sm ${TEXT_MUTED}`}>予約中の投稿はありません</p>
         ) : null}
 
         {scheduledRows.length > 0 ? (
@@ -597,11 +587,11 @@ function DiscordScheduleSection({ content }: { content: string }) {
             {scheduledRows.map((row) => (
               <li
                 key={row.post_id}
-                className="rounded-lg border border-white/[0.07] bg-[#0f0f1a] px-3 py-2 text-xs text-[#d7d7f4]"
+                className={`rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm ${TEXT_BODY}`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span>
-                    <span className="font-mono text-[#9898b8]">{row.post_id.slice(0, 8)}…</span>
+                    <span className={`font-mono ${TEXT_MUTED}`}>{row.post_id.slice(0, 8)}…</span>
                     {" · "}
                     #{channelOptions.find((ch) => ch.id === row.channel_id)?.name ?? row.channel_id}
                     {" · "}
@@ -611,12 +601,12 @@ function DiscordScheduleSection({ content }: { content: string }) {
                     type="button"
                     onClick={() => void onCancel(row.post_id)}
                     disabled={cancelPendingId === row.post_id}
-                    className="rounded border border-red-500/40 px-2 py-0.5 text-red-300 hover:bg-red-950/40 disabled:opacity-50"
+                    className="rounded border border-red-300 px-2 py-0.5 text-red-700 hover:bg-red-50 disabled:opacity-50"
                   >
                     {cancelPendingId === row.post_id ? "取消中…" : "キャンセル"}
                   </button>
                 </div>
-                <p className="mt-1 line-clamp-2 text-[#9898b8]">{row.content}</p>
+                <p className={`mt-1 line-clamp-2 ${TEXT_MUTED}`}>{row.content}</p>
               </li>
             ))}
           </ul>
