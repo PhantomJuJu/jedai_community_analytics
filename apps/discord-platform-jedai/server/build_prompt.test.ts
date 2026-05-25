@@ -54,4 +54,27 @@ describe("buildFullPrompt", () => {
     const prompt = buildFullPrompt(baseInput, "- 日時: 5/24 21:00");
     assert.match(prompt, /\[Context facts\]\n- 日時: 5\/24 21:00/);
   });
+
+  it("places hyperparameter block before few-shot examples", () => {
+    const prompt = buildFullPrompt({ ...baseInput, emoji_density: "なし" });
+    const hyperIdx = prompt.indexOf("Emoji density: なし");
+    const fewShotIdx = prompt.indexOf("[Single-parameter Examples");
+    assert.ok(hyperIdx >= 0, "hyperparameter block missing");
+    assert.ok(fewShotIdx >= 0, "few-shot section missing");
+    assert.ok(hyperIdx < fewShotIdx, "hyperparameter must precede few-shot examples");
+  });
+
+  it("differs when emoji_density changes", () => {
+    const none = buildFullPrompt({ ...baseInput, emoji_density: "なし" });
+    const many = buildFullPrompt({ ...baseInput, emoji_density: "多め" });
+    assert.notEqual(none, many);
+    assert.match(none, /Emoji density: なし/);
+    assert.match(many, /Emoji density: 多め/);
+  });
+
+  it("includes strict emoji rules in output instruction", () => {
+    const prompt = buildFullPrompt(baseInput);
+    assert.match(prompt, /Emoji density: なし → use zero emoji characters/);
+    assert.match(prompt, /Do not copy emoji count, tone, or length from few-shot/);
+  });
 });
