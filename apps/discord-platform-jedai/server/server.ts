@@ -15,6 +15,7 @@ import {
   getDiscordConfig,
   listDiscordPosts,
 } from "./discord_api.js";
+import { registerGenieSpRoutes } from "./genie_sp_routes.js";
 
 const notebookJobRunInputSchema = z.object({}).passthrough();
 
@@ -159,8 +160,14 @@ appkit.server.extend((app) => {
     res.json({
       configured: Boolean(genieSpaceId),
       alias: "default",
+      /** Service principal API — avoids user OAuth genie scope requirement */
+      basePath: "/api/genie-sp",
     });
   });
+
+  if (genieSpaceId) {
+    registerGenieSpRoutes(app, appkit);
+  }
 
   app.post("/api/notebook-job/run", async (req, res) => {
     const parsed = notebookJobRunInputSchema.safeParse(req.body ?? {});

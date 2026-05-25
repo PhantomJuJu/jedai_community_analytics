@@ -14,6 +14,7 @@ const CARD = "rounded-xl border border-white/[0.07] bg-[#1a1b2e]";
 type GenieConfigResponse = {
   configured: boolean;
   alias: string;
+  basePath?: string;
 };
 
 export function GeniePanel() {
@@ -92,6 +93,7 @@ export function GeniePanel() {
           <div className="h-[min(72vh,720px)] min-h-[480px] w-full">
             <GenieChat
               alias={config.alias}
+              basePath={config.basePath ?? "/api/genie-sp"}
               placeholder="コミュニティデータについて質問してください…"
               className="h-full"
             />

@@ -1,6 +1,7 @@
 {
   "user_api_scopes": [
-    "dashboards.genie"
+    "dashboards.genie",
+    "genie"
   ],
   "resources": [
     {
@@ -16,7 +17,7 @@
       "genie_space": {
         "name": "genie-space",
         "space_id": "01f157e0a288162daf5ccd0c431f19b7",
-        "permission": "CAN_RUN"
+        "permission": "CAN_MANAGE"
       }
     }
   ]
