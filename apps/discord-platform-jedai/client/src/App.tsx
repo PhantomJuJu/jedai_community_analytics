@@ -46,25 +46,31 @@ import {
   VoiceLtvRankingTable,
   VoiceSessionScatterCard,
 } from "./VoiceAnalytics.js";
+import { ThemeToggle } from "./ThemeToggle.js";
+import { useTheme } from "./ThemeProvider.js";
 import {
+  BTN_SECONDARY,
   CARD,
   CARD_FILTER_ACTIVE,
-  CHART_AXIS,
-  CHART_AXIS_LINE,
-  CHART_GRID,
-  CHART_TOOLTIP,
   CHIP_ACTIVE,
   CHIP_INACTIVE,
+  getChartColors,
+  HEADER_BORDER,
+  INPUT_SURFACE,
   LABEL_UPPER,
-  SIDEBAR_NAV_LIST,
-  SIDEBAR_NAV_TRIGGER,
   LINE_PRIMARY,
   LINE_SECONDARY,
   PAGE_BG,
   SELECT_CONTENT,
   SELECT_TRIGGER,
+  SIDEBAR_NAV_LIST,
+  SIDEBAR_NAV_TRIGGER,
+  SURFACE_ELEVATED,
+  SURFACE_MUTED,
   TABLE_BORDER,
   TABLE_HEAD,
+  TABLE_HEAD_BG,
+  TABLE_ROW_BORDER,
   TABLE_ROW_HOVER,
   TEXT_BODY,
   TEXT_MUTED,
@@ -243,16 +249,12 @@ function FilterBarContent({
               type="button"
               onClick={onRefresh}
               disabled={channelLoading || trendLoading}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-base font-medium text-slate-700 transition-colors hover:bg-slate-50 disabled:cursor-not-allowed disabled:opacity-50"
+              className={BTN_SECONDARY}
             >
               {channelLoading || trendLoading ? "更新中…" : "更新"}
             </button>
             {hasActiveFilters ? (
-              <button
-                type="button"
-                onClick={resetFilters}
-                className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-base font-medium text-slate-700 transition-colors hover:bg-slate-50"
-              >
+              <button type="button" onClick={resetFilters} className={BTN_SECONDARY}>
                 クリア
               </button>
             ) : null}
@@ -261,8 +263,8 @@ function FilterBarContent({
       </CardHeader>
       <CardContent className="flex flex-col gap-3 pb-5">
         <div
-          className={`rounded-lg border bg-slate-50 p-3 transition ${
-            filters.selectedMonth ? CARD_FILTER_ACTIVE : "border-slate-200"
+          className={`rounded-lg border p-3 transition ${SURFACE_MUTED} ${
+            filters.selectedMonth ? CARD_FILTER_ACTIVE : "border-border"
           }`}
         >
           <p className={`mb-2 ${LABEL_UPPER}`}>期間（月）</p>
@@ -292,8 +294,8 @@ function FilterBarContent({
         </div>
 
         <div
-          className={`rounded-lg border bg-slate-50 p-3 transition ${
-            filters.guildName ? CARD_FILTER_ACTIVE : "border-slate-200"
+          className={`rounded-lg border p-3 transition ${SURFACE_MUTED} ${
+            filters.guildName ? CARD_FILTER_ACTIVE : "border-border"
           }`}
         >
           <p className={`mb-2 ${LABEL_UPPER}`}>Guild</p>
@@ -323,15 +325,15 @@ function FilterBarContent({
 
         <div
           ref={categoryPanelRef}
-          className={`relative rounded-lg border bg-slate-50 p-3 transition ${
-            filters.categoryNames.length > 0 ? CARD_FILTER_ACTIVE : "border-slate-200"
+          className={`relative rounded-lg border p-3 transition ${SURFACE_MUTED} ${
+            filters.categoryNames.length > 0 ? CARD_FILTER_ACTIVE : "border-border"
           }`}
         >
           <p className={`mb-2 ${LABEL_UPPER}`}>Category（複数）</p>
           <button
             type="button"
             onClick={() => setIsCategoryOpen((prev) => !prev)}
-            className="h-9 w-full rounded-md border border-slate-200 bg-white px-3 text-left text-base text-slate-900"
+            className={`h-9 w-full rounded-md border px-3 text-left text-base ${INPUT_SURFACE}`}
           >
             {filters.categoryNames.length === 0 ? "すべてのカテゴリ" : `${filters.categoryNames.length}件選択中`}
           </button>
@@ -340,7 +342,7 @@ function FilterBarContent({
               {filters.categoryNames.map((name) => (
                 <span
                   key={name}
-                  className="rounded-md border border-blue-200 bg-blue-50 px-2 py-0.5 text-base text-blue-800"
+                  className="rounded-md border border-primary/40 bg-primary/10 px-2 py-0.5 text-base text-primary"
                 >
                   {name}
                 </span>
@@ -348,7 +350,9 @@ function FilterBarContent({
             </div>
           ) : null}
           {isCategoryOpen ? (
-            <div className="absolute left-0 right-0 top-full z-20 mt-1 w-full rounded-lg border border-slate-200 bg-white p-2 shadow-lg">
+            <div
+              className={`absolute left-0 right-0 top-full z-20 mt-1 w-full rounded-lg border p-2 shadow-lg ${SURFACE_ELEVATED}`}
+            >
               <button
                 type="button"
                 onClick={() =>
@@ -357,7 +361,7 @@ function FilterBarContent({
                     categoryNames: [],
                   }))
                 }
-                className="mb-1 w-full rounded px-2 py-1.5 text-left text-base text-slate-700 hover:bg-slate-50"
+                className={`mb-1 w-full rounded px-2 py-1.5 text-left text-base ${TEXT_BODY} hover:bg-accent`}
               >
                 すべて解除
               </button>
@@ -367,7 +371,7 @@ function FilterBarContent({
                   return (
                     <label
                       key={categoryName}
-                      className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-slate-50"
+                      className="flex cursor-pointer items-center gap-2 rounded px-2 py-1.5 hover:bg-accent"
                     >
                       <input
                         type="checkbox"
@@ -382,7 +386,7 @@ function FilterBarContent({
                         }
                         className="h-4 w-4 accent-blue-600"
                       />
-                      <span className="text-base text-slate-800">{categoryName}</span>
+                      <span className={`text-base ${TEXT_BODY}`}>{categoryName}</span>
                     </label>
                   );
                 })}
@@ -494,6 +498,8 @@ function KpiStrip() {
 
 function MessageTrendCard() {
   const { filters } = useFilterContext();
+  const { isDark } = useTheme();
+  const chartColors = getChartColors(isDark);
   const params = useMemo(() => ({}), []);
   const { data, loading, error } = useAnalyticsQuery("activity_daily_message_trend", params);
 
@@ -522,14 +528,18 @@ function MessageTrendCard() {
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <RechartsLineChart data={chartData} margin={{ top: 10, right: 16, left: 8, bottom: 0 }}>
-              <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
+              <CartesianGrid stroke={chartColors.grid} strokeDasharray="3 3" />
               <XAxis
                 dataKey="activity_date"
-                tick={{ fill: CHART_AXIS, fontSize: 14 }}
-                axisLine={{ stroke: CHART_AXIS_LINE }}
+                tick={{ fill: chartColors.axis, fontSize: 14 }}
+                axisLine={{ stroke: chartColors.axisLine }}
               />
-              <YAxis tick={{ fill: CHART_AXIS, fontSize: 14 }} axisLine={{ stroke: CHART_AXIS_LINE }} width={52} />
-              <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={{ color: CHART_AXIS }} />
+              <YAxis
+                tick={{ fill: chartColors.axis, fontSize: 14 }}
+                axisLine={{ stroke: chartColors.axisLine }}
+                width={52}
+              />
+              <Tooltip contentStyle={chartColors.tooltip} labelStyle={{ color: chartColors.axis }} />
               <Line
                 type="monotone"
                 dataKey="message_count"
@@ -548,6 +558,8 @@ function MessageTrendCard() {
 
 function VoiceTrendCard() {
   const { filters } = useFilterContext();
+  const { isDark } = useTheme();
+  const chartColors = getChartColors(isDark);
   const params = useMemo(() => ({}), []);
   const { data, loading, error } = useAnalyticsQuery("activity_daily_voice_trend", params);
 
@@ -576,14 +588,18 @@ function VoiceTrendCard() {
         <div className="h-[300px] w-full">
           <ResponsiveContainer width="100%" height="100%">
             <RechartsLineChart data={chartData} margin={{ top: 10, right: 16, left: 8, bottom: 0 }}>
-              <CartesianGrid stroke={CHART_GRID} strokeDasharray="3 3" />
+              <CartesianGrid stroke={chartColors.grid} strokeDasharray="3 3" />
               <XAxis
                 dataKey="activity_date"
-                tick={{ fill: CHART_AXIS, fontSize: 14 }}
-                axisLine={{ stroke: CHART_AXIS_LINE }}
+                tick={{ fill: chartColors.axis, fontSize: 14 }}
+                axisLine={{ stroke: chartColors.axisLine }}
               />
-              <YAxis tick={{ fill: CHART_AXIS, fontSize: 14 }} axisLine={{ stroke: CHART_AXIS_LINE }} width={52} />
-              <Tooltip contentStyle={CHART_TOOLTIP} labelStyle={{ color: CHART_AXIS }} />
+              <YAxis
+                tick={{ fill: chartColors.axis, fontSize: 14 }}
+                axisLine={{ stroke: chartColors.axisLine }}
+                width={52}
+              />
+              <Tooltip contentStyle={chartColors.tooltip} labelStyle={{ color: chartColors.axis }} />
               <Line
                 type="monotone"
                 dataKey="voice_hours"
@@ -631,7 +647,7 @@ function RankingTableCard({
       </CardHeader>
       <CardContent className="overflow-x-auto p-0">
         <table className="w-full min-w-[460px] text-base">
-          <thead className="bg-slate-50">
+          <thead className={TABLE_HEAD_BG}>
             <tr className={`border-b ${TABLE_BORDER} text-left`}>
               <th className={`px-5 py-3 ${TABLE_HEAD}`}>Rank</th>
               <th className={`px-5 py-3 ${TABLE_HEAD}`}>{nameColumnLabel}</th>
@@ -642,7 +658,7 @@ function RankingTableCard({
             {displayRows.map((row, index) => (
               <tr
                 key={`${row.name}-${index}`}
-                className={`border-b border-slate-100 transition-colors ${TABLE_ROW_HOVER}`}
+                className={`border-b ${TABLE_ROW_BORDER} transition-colors ${TABLE_ROW_HOVER}`}
               >
                 <td className={`px-5 py-3 tabular-nums ${TEXT_SUBTLE}`}>{index + 1}</td>
                 <td className={`px-5 py-3 ${TEXT_BODY}`}>{row.name}</td>
@@ -655,11 +671,7 @@ function RankingTableCard({
         </table>
         {canToggle ? (
           <div className={`border-t ${TABLE_BORDER} px-4 py-3`}>
-            <button
-              type="button"
-              onClick={() => setShowAll((prev) => !prev)}
-              className="rounded-md border border-slate-300 bg-white px-3 py-1.5 text-base text-slate-700 transition hover:bg-slate-50"
-            >
+            <button type="button" onClick={() => setShowAll((prev) => !prev)} className={BTN_SECONDARY}>
               {showAll ? `上位${maxRows}件に戻す` : "すべて表示"}
             </button>
           </div>
@@ -736,7 +748,7 @@ function ChannelActivityTable() {
 
 function DashboardPageHeader() {
   return (
-    <header className="border-b border-slate-200 pb-5">
+    <header className={`border-b pb-5 ${HEADER_BORDER}`}>
       <p className={LABEL_UPPER}>コミュニティ分析</p>
       <h1 className={`mt-2 text-3xl font-semibold tracking-tight ${TEXT_TITLE}`}>活動ダッシュボード</h1>
       <p className={`mt-1 text-base ${TEXT_MUTED}`}>
@@ -748,7 +760,7 @@ function DashboardPageHeader() {
 
 function AnnouncementPageHeader() {
   return (
-    <header className="border-b border-slate-200 pb-5">
+    <header className={`border-b pb-5 ${HEADER_BORDER}`}>
       <p className={LABEL_UPPER}>AI ツール</p>
       <h1 className={`mt-2 text-3xl font-semibold tracking-tight ${TEXT_TITLE}`}>告知文作成</h1>
       <p className={`mt-1 text-base ${TEXT_MUTED}`}>条件を選び、AIに依頼文を書くだけでイベント告知文を作成できます。</p>
@@ -775,10 +787,13 @@ export default function App() {
           <Tabs value={activeTab} onValueChange={setActiveTab} className="w-full">
             <div className="flex flex-col gap-6 lg:grid lg:grid-cols-[280px_minmax(0,1fr)] lg:gap-8">
               <aside className="space-y-4 lg:sticky lg:top-6 lg:self-start">
-                <div className="rounded-lg border border-slate-200 bg-white px-4 py-4 shadow-sm">
+                <div className={`px-4 py-4 ${SURFACE_ELEVATED}`}>
                   <p className={LABEL_UPPER}>JEDAI Discord</p>
                   <p className={`mt-2 text-base font-semibold ${TEXT_TITLE}`}>コミュニティ分析</p>
                   <p className={`mt-1 text-base ${TEXT_MUTED}`}>活動データの可視化とAI支援</p>
+                  <div className="mt-4">
+                    <ThemeToggle />
+                  </div>
                 </div>
 
                 <nav aria-label="メインメニュー">

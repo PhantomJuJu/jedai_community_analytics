@@ -1,0 +1,35 @@
+@import "tailwindcss";
+
+/* Class-based dark mode: html.dark toggled by ThemeProvider */
+@custom-variant dark (&:where(.dark, .dark *));
+
+/*
+ * Discord-inspired palette — must use oklch() to match @databricks/appkit-ui.
+ * Loaded after appkit styles (see main.tsx) so these override .dark defaults.
+ */
+html.dark {
+  --background: oklch(0.321 0.006 285.2);
+  --foreground: oklch(0.967 0.002 285.2);
+  --card: oklch(0.366 0.007 285.2);
+  --card-foreground: oklch(0.967 0.002 285.2);
+  --popover: oklch(0.366 0.007 285.2);
+  --popover-foreground: oklch(0.967 0.002 285.2);
+  --primary: oklch(0.583 0.214 264.4);
+  --primary-foreground: oklch(1 0 0);
+  --secondary: oklch(0.415 0.008 285.2);
+  --secondary-foreground: oklch(0.967 0.002 285.2);
+  --muted: oklch(0.284 0.006 285.2);
+  --muted-foreground: oklch(0.763 0.011 285.2);
+  --accent: oklch(0.415 0.008 285.2);
+  --accent-foreground: oklch(0.967 0.002 285.2);
+  --border: oklch(0.398 0.008 285.2);
+  --input: oklch(0.242 0.006 285.2);
+  --ring: oklch(0.583 0.214 264.4);
+  --sidebar: oklch(0.284 0.006 285.2);
+  --sidebar-foreground: oklch(0.967 0.002 285.2);
+  --sidebar-primary: oklch(0.583 0.214 264.4);
+  --sidebar-primary-foreground: oklch(1 0 0);
+  --sidebar-accent: oklch(0.415 0.008 285.2);
+  --sidebar-accent-foreground: oklch(0.967 0.002 285.2);
+  --sidebar-border: oklch(0.398 0.008 285.2);
+}

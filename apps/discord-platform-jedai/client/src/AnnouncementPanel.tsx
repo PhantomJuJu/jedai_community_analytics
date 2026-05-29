@@ -14,13 +14,17 @@ import { useAnalyticsQuery } from "@databricks/appkit-ui/react";
 import { useCallback, useEffect, useMemo, useState, type FormEvent, type ReactNode } from "react";
 import {
   BTN_PRIMARY,
+  BTN_SECONDARY,
   CARD,
   CHIP_ACTIVE,
   CHIP_INACTIVE,
+  HEADER_BORDER,
   INPUT_SURFACE,
   LABEL_UPPER,
   SELECT_CONTENT,
   SELECT_TRIGGER,
+  SURFACE_ELEVATED,
+  SURFACE_MUTED,
   TEXT_BODY,
   TEXT_MUTED,
   TEXT_SUBTLE,
@@ -131,7 +135,7 @@ export function AnnouncementPanel() {
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-8">
-          <section className="space-y-6 rounded-xl border border-slate-200 bg-slate-50 p-5">
+          <section className={`space-y-6 rounded-xl border p-5 ${SURFACE_MUTED}`}>
             <p className={`text-base font-semibold ${TEXT_TITLE}`}>告知文のスタイル</p>
             <p className={`${TEXT_SUBTLE}`}>
               文体・長さ・構成はここで指定します。下の依頼文には日時・内容・参加方法などの事実を書いてください（文体の指定は不要です）。
@@ -200,7 +204,7 @@ export function AnnouncementPanel() {
           </section>
         </form>
 
-        <div className="mt-8 rounded-xl border border-slate-200 bg-slate-50 p-5">
+        <div className={`mt-8 rounded-xl border p-5 ${SURFACE_MUTED}`}>
           <p className={`text-base font-semibold ${TEXT_TITLE}`}>生成プレビュー</p>
           <p className={`mt-1 ${TEXT_SUBTLE}`}>
             適用スタイル・依頼内容・AIが作成した告知文を確認できます。
@@ -304,7 +308,7 @@ function AppliedStyleSummary({
   ];
 
   return (
-    <div className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-base shadow-sm">
+    <div className={`rounded-xl border px-4 py-3 text-base shadow-sm ${SURFACE_ELEVATED}`}>
       <p className={`font-medium ${TEXT_TITLE}`}>適用スタイル（生成時に API へ送信）</p>
       <dl className={`mt-2 grid gap-1.5 sm:grid-cols-2 ${TEXT_BODY}`}>
         {rows.map((row) => (
@@ -321,7 +325,9 @@ function AppliedStyleSummary({
 function UserBubble({ text }: { text: string }) {
   return (
     <div className="flex justify-end">
-      <div className={`max-w-[90%] rounded-2xl rounded-br-sm border border-blue-200 bg-blue-50 px-4 py-3 ${TEXT_BODY}`}>
+      <div
+        className={`max-w-[90%] rounded-2xl rounded-br-sm border border-primary/40 bg-primary/10 px-4 py-3 ${TEXT_BODY}`}
+      >
         {text}
       </div>
     </div>
@@ -337,13 +343,13 @@ function AgentReplyBubble({ message }: { message: string }) {
       >
         AI
       </div>
-      <div className="max-w-[95%] rounded-2xl rounded-bl-sm border border-slate-200 bg-white px-4 py-3 shadow-sm">
+      <div className={`max-w-[95%] rounded-2xl rounded-bl-sm border px-4 py-3 shadow-sm ${SURFACE_ELEVATED}`}>
         <p className={`${TEXT_BODY}`}>{message}</p>
         <div className="mt-2 flex items-center gap-1">
           {[0, 1, 2].map((idx) => (
             <span
               key={idx}
-              className="h-2 w-2 rounded-full bg-slate-400 animate-bounce"
+              className="h-2 w-2 animate-bounce rounded-full bg-muted-foreground"
               style={{ animationDelay: `${idx * 0.15}s` }}
             />
           ))}
@@ -376,7 +382,7 @@ function ResultBubble({ text }: { text: string }) {
       >
         AI
       </div>
-      <div className="relative w-full max-w-[95%] rounded-2xl rounded-bl-sm border border-slate-200 bg-white p-4 shadow-sm">
+      <div className={`relative w-full max-w-[95%] rounded-2xl rounded-bl-sm border p-4 shadow-sm ${SURFACE_ELEVATED}`}>
         <Button
           type="button"
           onClick={onCopy}
@@ -564,7 +570,7 @@ function DiscordScheduleSection({ content }: { content: string }) {
   const scheduledRows = posts?.scheduled ?? [];
 
   return (
-    <div className="mt-6 rounded-lg border border-slate-200 bg-slate-50 p-4">
+    <div className={`mt-6 rounded-lg border p-4 ${SURFACE_MUTED}`}>
       <p className={LABEL_UPPER}>Discord へ送信</p>
       <p className={`mt-1 ${TEXT_SUBTLE}`}>
         生成した文章を EC2 上の Discord Bot に予約登録します。指定時刻に自動投稿されます。
@@ -616,14 +622,14 @@ function DiscordScheduleSection({ content }: { content: string }) {
       {scheduleError ? <p className="mt-2 text-base text-red-600">{scheduleError}</p> : null}
       {scheduleSuccess ? <p className="mt-2 text-base text-emerald-700">{scheduleSuccess}</p> : null}
 
-      <div className="mt-6 border-t border-slate-200 pt-4">
+      <div className={`mt-6 border-t pt-4 ${HEADER_BORDER}`}>
         <div className="flex items-center justify-between gap-2">
           <p className={LABEL_UPPER}>予約一覧</p>
           <button
             type="button"
             onClick={() => void loadPosts()}
             disabled={postsLoading}
-            className="rounded-md border border-slate-300 bg-white px-2 py-1 text-base text-slate-700 hover:bg-slate-50 disabled:opacity-50"
+            className={BTN_SECONDARY}
           >
             {postsLoading ? "読込中…" : "再読込"}
           </button>
@@ -642,7 +648,7 @@ function DiscordScheduleSection({ content }: { content: string }) {
             {scheduledRows.map((row) => (
               <li
                 key={row.post_id}
-                className={`rounded-lg border border-slate-200 bg-white px-3 py-2 ${TEXT_BODY}`}
+                className={`rounded-lg border px-3 py-2 ${SURFACE_ELEVATED} ${TEXT_BODY}`}
               >
                 <div className="flex flex-wrap items-center justify-between gap-2">
                   <span>

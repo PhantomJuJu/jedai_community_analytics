@@ -8,7 +8,7 @@ import {
 } from "@databricks/appkit-ui/react";
 import { useEffect, useState } from "react";
 import { GenieAgentChat } from "./GenieAgentChat.js";
-import { CARD, TEXT_BODY, TEXT_MUTED, TEXT_TITLE } from "./theme";
+import { CARD, CODE_INLINE, TEXT_BODY, TEXT_MUTED, TEXT_TITLE } from "./theme";
 
 type GenieConfigResponse = {
   configured: boolean;
@@ -64,19 +64,19 @@ export function GeniePanel() {
           </p>
           <ul className={`list-inside list-disc space-y-1 ${TEXT_MUTED}`}>
             <li>
-              ローカル: <code className="rounded bg-slate-100 px-1 text-slate-800">.env</code> に{" "}
-              <code className="rounded bg-slate-100 px-1 text-slate-800">DATABRICKS_GENIE_SPACE_ID</code> を追加
+              ローカル: <code className={CODE_INLINE}>.env</code> に{" "}
+              <code className={CODE_INLINE}>DATABRICKS_GENIE_SPACE_ID</code> を追加
             </li>
             <li>
               Databricks Apps: <strong>Genie Space リソース</strong>（名前{" "}
-              <code className="rounded bg-slate-100 px-1 text-slate-800">genie-space</code>）をアプリに追加し、
-              <code className="rounded bg-slate-100 px-1 text-slate-800">app.yaml</code> の{" "}
-              <code className="rounded bg-slate-100 px-1 text-slate-800">valueFrom: genie-space</code> と対応させる
+              <code className={CODE_INLINE}>genie-space</code>）をアプリに追加し、
+              <code className={CODE_INLINE}>app.yaml</code> の{" "}
+              <code className={CODE_INLINE}>valueFrom: genie-space</code> と対応させる
             </li>
             <li>
               あわせて User authorization にスコープ{" "}
-              <code className="rounded bg-slate-100 px-1 text-slate-800">dashboards.genie</code> を付与（
-              <code className="rounded bg-slate-100 px-1 text-slate-800">scripts/app-update-genie.json</code> 参照）
+              <code className={CODE_INLINE}>dashboards.genie</code> を付与（
+              <code className={CODE_INLINE}>scripts/app-update-genie.json</code> 参照）
             </li>
             <li>反映後に再デプロイ。Space ID は Genie Space の About タブからコピー</li>
           </ul>

@@ -42,7 +42,7 @@ function GenieEmptyState({
 }) {
   return (
     <div className="flex flex-1 flex-col items-center justify-center px-6 py-8 text-center">
-      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-blue-50">
+      <div className="flex h-16 w-16 items-center justify-center rounded-full bg-primary/15">
         <AgentSparkleIcon />
       </div>
       <h2 className={`mt-5 text-2xl font-semibold tracking-tight ${TEXT_TITLE}`}>
@@ -59,7 +59,7 @@ function GenieEmptyState({
               type="button"
               disabled={disabled}
               onClick={() => onSelectPrompt(prompt)}
-              className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-base text-slate-700 transition-colors hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-full border border-border bg-muted px-4 py-2.5 text-base text-foreground transition-colors hover:border-border hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               {prompt}
             </button>
@@ -69,7 +69,7 @@ function GenieEmptyState({
           type="button"
           disabled={disabled}
           onClick={() => onSelectPrompt(GENIE_SAMPLE_PROMPTS[2])}
-          className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-base text-slate-700 transition-colors hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+          className="rounded-full border border-border bg-muted px-4 py-2.5 text-base text-foreground transition-colors hover:border-border hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
         >
           {GENIE_SAMPLE_PROMPTS[2]}
         </button>
@@ -80,7 +80,7 @@ function GenieEmptyState({
               type="button"
               disabled={disabled}
               onClick={() => onSelectPrompt(prompt)}
-              className="rounded-full border border-slate-200 bg-slate-50 px-4 py-2.5 text-base text-slate-700 transition-colors hover:border-slate-300 hover:bg-white disabled:cursor-not-allowed disabled:opacity-50"
+              className="rounded-full border border-border bg-muted px-4 py-2.5 text-base text-foreground transition-colors hover:border-border hover:bg-accent disabled:cursor-not-allowed disabled:opacity-50"
             >
               {prompt}
             </button>
@@ -107,10 +107,12 @@ export function GenieAgentChat({ alias, basePath, className = "" }: GenieAgentCh
   const showEmptyState = messages.length === 0 && status !== "loading-history";
 
   return (
-    <div className={`flex h-full min-h-0 flex-col overflow-hidden bg-white ${className}`}>
-      <header className="flex shrink-0 items-center justify-between border-b border-slate-100 bg-slate-50/80 px-4 py-3">
+    <div
+      className={`flex h-full min-h-0 flex-col overflow-hidden bg-background ${className}`}
+    >
+      <header className="flex shrink-0 items-center justify-between border-b border-border bg-muted/80 px-4 py-3">
         <div className="flex items-center gap-2">
-          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-blue-100">
+          <span className="flex h-8 w-8 items-center justify-center rounded-full bg-primary/20">
             <AgentSparkleIcon />
           </span>
           <span className={`text-base font-semibold ${TEXT_TITLE}`}>AI データ相談</span>
@@ -120,7 +122,7 @@ export function GenieAgentChat({ alias, basePath, className = "" }: GenieAgentCh
             variant="ghost"
             size="sm"
             onClick={reset}
-            className={`text-base ${TEXT_MUTED} hover:text-slate-900`}
+            className={`text-base ${TEXT_MUTED} hover:text-slate-900 dark:hover:text-[#f2f3f5]`}
           >
             新しい会話
           </Button>
@@ -142,7 +144,7 @@ export function GenieAgentChat({ alias, basePath, className = "" }: GenieAgentCh
       </div>
 
       {error ? (
-        <div className="shrink-0 border-t border-red-200 bg-red-50 px-4 py-2 text-base text-red-700">
+        <div className="shrink-0 border-t border-red-200 bg-red-50 px-4 py-2 text-base text-red-700 dark:border-red-900 dark:bg-red-950/40 dark:text-red-300">
           {error}
         </div>
       ) : null}

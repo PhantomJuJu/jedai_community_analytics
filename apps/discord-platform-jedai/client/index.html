@@ -11,27 +11,7 @@
       rel="stylesheet"
     />
     <style>
-      :root {
-        --background: 220 20% 97%;
-        --foreground: 215 28% 17%;
-        --card: 0 0% 100%;
-        --card-foreground: 215 28% 17%;
-        --popover: 0 0% 100%;
-        --popover-foreground: 215 28% 17%;
-        --border: 214 20% 88%;
-        --input: 214 20% 88%;
-        --primary: 217 91% 53%;
-        --primary-foreground: 0 0% 100%;
-        --secondary: 210 40% 96%;
-        --secondary-foreground: 215 28% 17%;
-        --accent: 214 95% 93%;
-        --accent-foreground: 215 28% 17%;
-        --muted: 210 40% 98%;
-        --muted-foreground: 215 16% 47%;
-        --destructive: 0 72% 51%;
-        --destructive-foreground: 0 0% 100%;
-        --radius: 0.5rem;
-      }
+      /* Theme tokens live in @databricks/appkit-ui + client/src/app.css (oklch). */
 
       html {
         font-size: 17px;
@@ -48,10 +28,6 @@
       body {
         margin: 0;
         font-family: "Inter", "Noto Sans JP", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
-        background: #f5f6fa;
-        color: hsl(var(--foreground));
-        -webkit-font-smoothing: antialiased;
-        -moz-osx-font-smoothing: grayscale;
       }
 
       h1,
@@ -63,7 +39,6 @@
         font-family: "Inter", "Noto Sans JP", sans-serif;
         font-weight: 600;
         letter-spacing: -0.01em;
-        color: #1e293b;
       }
 
       pre,
@@ -135,9 +110,72 @@
       button[role="combobox"] svg {
         color: #64748b !important;
       }
+
+      html.dark .chart-readable .recharts-cartesian-axis-tick-value,
+      html.dark .chart-readable .recharts-legend-item-text,
+      html.dark .chart-readable .recharts-label,
+      html.dark .chart-readable .recharts-text,
+      html.dark .chart-readable .recharts-tooltip-label,
+      html.dark .chart-readable .recharts-tooltip-item {
+        fill: #b5bac1 !important;
+        color: #b5bac1 !important;
+      }
+
+      html.dark .chart-readable .recharts-cartesian-grid line {
+        stroke: rgba(79, 84, 92, 0.45) !important;
+      }
+
+      html.dark .chart-readable .recharts-xAxis .recharts-cartesian-axis-line,
+      html.dark .chart-readable .recharts-yAxis .recharts-cartesian-axis-line,
+      html.dark .chart-readable .recharts-xAxis .recharts-cartesian-axis-tick line,
+      html.dark .chart-readable .recharts-yAxis .recharts-cartesian-axis-tick line {
+        stroke: rgba(79, 84, 92, 0.65) !important;
+      }
+
+      html.dark .chart-readable.chart-bar-strong .recharts-bar-rectangle path {
+        stroke: rgba(79, 84, 92, 0.35) !important;
+      }
+
+      html.dark button[role="combobox"],
+      html.dark [data-radix-select-trigger] {
+        color: #f2f3f5 !important;
+        background-color: #1e1f22 !important;
+        border-color: #1e1f22 !important;
+      }
+
+      html.dark [role="listbox"],
+      html.dark [data-radix-select-content] {
+        color: #f2f3f5 !important;
+        background-color: #383a40 !important;
+        border-color: #3f4147 !important;
+      }
+
+      html.dark [role="option"],
+      html.dark [data-radix-select-item] {
+        color: #f2f3f5 !important;
+      }
+
+      html.dark [role="option"][data-highlighted],
+      html.dark [data-radix-select-item][data-highlighted] {
+        background-color: #404249 !important;
+        color: #f2f3f5 !important;
+      }
+
+      html.dark button[role="combobox"] svg {
+        color: #b5bac1 !important;
+      }
     </style>
   </head>
   <body>
+    <script>
+      (function () {
+        var stored = localStorage.getItem("jedai-theme");
+        var dark =
+          stored === "dark" ||
+          (stored !== "light" && window.matchMedia("(prefers-color-scheme: dark)").matches);
+        if (dark) document.documentElement.classList.add("dark");
+      })();
+    </script>
     <div id="root"></div>
     <script type="module" src="/src/main.tsx"></script>
   </body>

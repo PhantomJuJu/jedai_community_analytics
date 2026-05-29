@@ -62,7 +62,9 @@ export function GenieChatInputJa({
   };
 
   return (
-    <div className={`flex shrink-0 items-end gap-3 border-t border-slate-200 bg-white px-4 py-4 ${className}`}>
+    <div
+      className={`flex shrink-0 items-end gap-3 border-t border-border bg-background px-4 py-4 ${className}`}
+    >
       <textarea
         ref={textareaRef}
         value={value}
