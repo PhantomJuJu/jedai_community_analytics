@@ -27,6 +27,8 @@ import {
   CARD,
   churnLevelBadgeClass,
   getChartColors,
+  getHeatmapPrimaryRgb,
+  getLineColors,
   INSIGHT_BOX,
   INSIGHT_LABEL,
   LABEL_UPPER,
@@ -349,6 +351,7 @@ export function VoiceWeeklyKpiStrip() {
 export function VoiceHeatmapCard() {
   const { isDark } = useTheme();
   const chartColors = getChartColors(isDark);
+  const [heatmapR, heatmapG, heatmapB] = getHeatmapPrimaryRgb(isDark);
   const params = useMemo(() => ({}), []);
   const { data, loading, error } = useAnalyticsQuery("voice_active_timeslots", params);
 
@@ -406,7 +409,9 @@ export function VoiceHeatmapCard() {
                   const intensity = value / maxValue;
                   const hasValue = value > 0;
                   const alpha = hasValue ? 0.12 + intensity * 0.78 : 0;
-                  const bgColor = hasValue ? `rgba(37, 99, 235, ${alpha})` : chartColors.heatmapEmpty;
+                  const bgColor = hasValue
+                    ? `rgba(${heatmapR}, ${heatmapG}, ${heatmapB}, ${alpha})`
+                    : chartColors.heatmapEmpty;
                   return (
                     <div
                       key={`${day}-${hour}`}
@@ -437,6 +442,7 @@ function median(nums: number[]): number {
 export function VoiceSessionScatterCard() {
   const { isDark } = useTheme();
   const chartColors = getChartColors(isDark);
+  const lineColors = getLineColors(isDark);
   const params = useMemo(() => ({}), []);
   const { data, loading, error } = useAnalyticsQuery("voice_session_segment", params);
 
@@ -495,7 +501,7 @@ export function VoiceSessionScatterCard() {
               />
               <ReferenceLine x={mx} stroke={chartColors.referenceLine} strokeDasharray="4 4" />
               <ReferenceLine y={my} stroke={chartColors.referenceLine} strokeDasharray="4 4" />
-              <Scatter name="ユーザ" data={chartData} fill="#2563eb" />
+              <Scatter name="ユーザ" data={chartData} fill={lineColors.primary} />
             </ScatterChart>
           </ResponsiveContainer>
         </div>

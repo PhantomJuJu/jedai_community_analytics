@@ -196,7 +196,7 @@ export function AnnouncementPanel() {
               onChange={(ev) => setUserRequest(ev.target.value)}
               rows={6}
               placeholder="例: 来週土曜21時にGeoguessrの練習会を告知してください。参加はこの投稿へのリアクションでお願いします。"
-              className={`min-h-[160px] rounded-xl border px-4 py-3 text-base leading-relaxed focus-visible:ring-blue-500/40 ${INPUT_SURFACE}`}
+              className={`min-h-[160px] rounded-xl border px-4 py-3 text-base leading-relaxed focus-visible:ring-primary/40 ${INPUT_SURFACE}`}
             />
             <Button type="submit" disabled={pending || user_request.trim().length === 0} className={`w-full sm:w-auto ${BTN_PRIMARY}`}>
               {pending ? "告知文を作成中…" : "AIに告知文を作ってもらう"}
@@ -338,7 +338,7 @@ function AgentReplyBubble({ message }: { message: string }) {
   return (
     <div className="flex justify-start gap-2">
       <div
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
         aria-hidden
       >
         AI
@@ -377,7 +377,7 @@ function ResultBubble({ text }: { text: string }) {
   return (
     <div className="flex justify-start gap-2">
       <div
-        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-blue-600 text-xs font-semibold text-white"
+        className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-xs font-semibold text-primary-foreground"
         aria-hidden
       >
         AI
@@ -605,7 +605,7 @@ function DiscordScheduleSection({ content }: { content: string }) {
             type="datetime-local"
             value={scheduledAtLocal}
             onChange={(event) => setScheduledAtLocal(event.target.value)}
-            className={`h-9 w-full rounded-md border px-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/40 ${INPUT_SURFACE}`}
+            className={`h-9 w-full rounded-md border px-3 text-base focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/40 ${INPUT_SURFACE}`}
           />
         </Field>
       </div>

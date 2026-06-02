@@ -80,7 +80,7 @@ export function GenieChatInputJa({
         placeholder={placeholder}
         disabled={disabled}
         rows={1}
-        className={`min-h-[44px] flex-1 resize-none overflow-hidden rounded-xl border px-4 py-3 text-base shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-blue-500/30 disabled:cursor-not-allowed disabled:opacity-50 ${INPUT_SURFACE}`}
+        className={`min-h-[44px] flex-1 resize-none overflow-hidden rounded-xl border px-4 py-3 text-base shadow-sm focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/30 disabled:cursor-not-allowed disabled:opacity-50 ${INPUT_SURFACE}`}
       />
       <button
         type="button"

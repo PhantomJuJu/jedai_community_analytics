@@ -55,11 +55,10 @@ import {
   CHIP_ACTIVE,
   CHIP_INACTIVE,
   getChartColors,
+  getLineColors,
   HEADER_BORDER,
   INPUT_SURFACE,
   LABEL_UPPER,
-  LINE_PRIMARY,
-  LINE_SECONDARY,
   PAGE_BG,
   SELECT_CONTENT,
   SELECT_TRIGGER,
@@ -384,7 +383,7 @@ function FilterBarContent({
                               : [...prev.categoryNames, categoryName],
                           }))
                         }
-                        className="h-4 w-4 accent-blue-600"
+                        className="h-4 w-4 accent-primary"
                       />
                       <span className={`text-base ${TEXT_BODY}`}>{categoryName}</span>
                     </label>
@@ -500,6 +499,7 @@ function MessageTrendCard() {
   const { filters } = useFilterContext();
   const { isDark } = useTheme();
   const chartColors = getChartColors(isDark);
+  const lineColors = getLineColors(isDark);
   const params = useMemo(() => ({}), []);
   const { data, loading, error } = useAnalyticsQuery("activity_daily_message_trend", params);
 
@@ -543,7 +543,7 @@ function MessageTrendCard() {
               <Line
                 type="monotone"
                 dataKey="message_count"
-                stroke={LINE_PRIMARY}
+                stroke={lineColors.primary}
                 strokeWidth={2.5}
                 dot={false}
                 activeDot={{ r: 5 }}
@@ -560,6 +560,7 @@ function VoiceTrendCard() {
   const { filters } = useFilterContext();
   const { isDark } = useTheme();
   const chartColors = getChartColors(isDark);
+  const lineColors = getLineColors(isDark);
   const params = useMemo(() => ({}), []);
   const { data, loading, error } = useAnalyticsQuery("activity_daily_voice_trend", params);
 
@@ -603,7 +604,7 @@ function VoiceTrendCard() {
               <Line
                 type="monotone"
                 dataKey="voice_hours"
-                stroke={LINE_SECONDARY}
+                stroke={lineColors.secondary}
                 strokeWidth={2.5}
                 dot={false}
                 activeDot={{ r: 5 }}

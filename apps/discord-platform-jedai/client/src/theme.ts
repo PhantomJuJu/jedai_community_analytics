@@ -1,11 +1,24 @@
 /** Shared UI tokens — AppKit semantic colors (light + Discord dark via CSS variables). */
 
+/** Discord brand / dark UI reference colors (hex). */
 export const DISCORD = {
-  bgBase: "#313338",
-  bgSidebar: "#2b2d31",
-  bgElevated: "#383a40",
   blurple: "#5865f2",
+  bgBase: "#313338",
+  bgMainAlt: "#2c2f33",
+  bgSidebar: "#1e1f22",
+  bgChannelList: "#23272a",
+  bgElevated: "#383a40",
 } as const;
+
+/** RGB tuples for chart fills that use rgba(). */
+export const HEATMAP_PRIMARY_RGB = {
+  light: [37, 99, 235] as const,
+  dark: [88, 101, 242] as const,
+};
+
+export function getHeatmapPrimaryRgb(isDark: boolean): readonly [number, number, number] {
+  return isDark ? HEATMAP_PRIMARY_RGB.dark : HEATMAP_PRIMARY_RGB.light;
+}
 
 export const CARD =
   "rounded-lg border border-border bg-card text-card-foreground shadow-sm transition-colors hover:border-border/80";
@@ -80,11 +93,11 @@ export const CHART_COLORS_DARK = {
   axis: "#b5bac1",
   axisLine: "rgba(79, 84, 92, 0.65)",
   tooltip: {
-    background: "#383a40",
-    border: "1px solid #3f4147",
+    background: DISCORD.bgElevated,
+    border: `1px solid ${DISCORD.bgMainAlt}`,
     color: "#f2f3f5",
   },
-  heatmapEmpty: "#2b2d31",
+  heatmapEmpty: DISCORD.bgSidebar,
   heatmapCellText: "#f2f3f5",
   referenceLine: "rgba(79, 84, 92, 0.65)",
 } as const;
